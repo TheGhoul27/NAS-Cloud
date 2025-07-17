@@ -7,6 +7,8 @@ import Login from './components/Login';
 import Register from './components/Register';
 import Drive from './components/Drive';
 import Photos from './components/Photos';
+import AdminLogin from './components/AdminLogin';
+import AdminPanel from './components/AdminPanel';
 
 function App() {
   return (
@@ -34,6 +36,11 @@ function App() {
               <Photos />
             </ProtectedRoute>
           } />
+          
+          {/* Admin Routes - Separate from regular user system */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminPanel />} />
+          <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
           
           {/* Catch all route */}
           <Route path="*" element={<Navigate to="/drive" replace />} />

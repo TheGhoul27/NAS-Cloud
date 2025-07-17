@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../services/api';
+import api from '../services/api';
 
 const AuthContext = createContext();
 
@@ -18,14 +19,26 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (token) {
-      // In a real app, you'd verify the token here
-      setUser({ 
-        email: localStorage.getItem('user_email'),
-        storage_id: localStorage.getItem('user_storage_id') || 'unknown'
-      });
+      // Fetch current user details
+      fetchCurrentUser();
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
+
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await api.get('/auth/me');
+      setUser(response.data);
+    } catch (error) {
+      console.error('Failed to fetch user:', error);
+      // If token is invalid, clear it
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const login = async (credentials) => {
     try {
@@ -34,16 +47,12 @@ export const AuthProvider = ({ children }) => {
       
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('refresh_token', refresh_token);
-      localStorage.setItem('user_email', credentials.email);
       
-      // TODO: Fetch user details to get storage_id
-      // For now, we'll set a placeholder
-      setUser({ 
-        email: credentials.email,
-        storage_id: localStorage.getItem('user_storage_id') || 'unknown'
-      });
+      // Fetch user details
+      const userResponse = await api.get('/auth/me');
+      setUser(userResponse.data);
       
-      return { success: true };
+      return { success: true, user: userResponse.data };
     } catch (error) {
       console.error('Login error:', error);
       return { 
@@ -58,10 +67,6 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.register(userData);
       const userData_response = response.data;
       
-      // Store user info from registration
-      localStorage.setItem('user_email', userData_response.email);
-      localStorage.setItem('user_storage_id', userData_response.storage_id);
-      
       return { success: true, data: userData_response };
     } catch (error) {
       console.error('Registration error:', error);
@@ -75,8 +80,6 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user_email');
-    localStorage.removeItem('user_storage_id');
     setUser(null);
   };
 

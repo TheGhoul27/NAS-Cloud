@@ -1,14 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
-from app.models.database import get_session, User
-from app.schemas.auth import UserCreate, UserLogin, UserResponse, Token
+from sqlmodel import Session, select, desc
+from app.models.database import get_session, User, UserStatus, UserRole
+from app.schemas.auth import (
+    UserCreate, UserLogin, UserResponse, Token
+)
 from app.auth.auth import (
     verify_password, 
     get_password_hash, 
     create_access_token, 
     create_refresh_token
 )
+from app.auth.dependencies import get_current_user
 from app.services.storage import storage_service
+from typing import List
+from datetime import datetime
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -35,21 +40,17 @@ async def register(user: UserCreate, session: Session = Depends(get_session)):
             break
         storage_id = storage_service.generate_user_id()
     
-    # Create user storage folders
-    try:
-        storage_paths = storage_service.create_user_storage(storage_id)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create user storage: {str(e)}"
-        )
-    
-    # Create new user
+    # Create new user with pending status (will be approved by admin)
     hashed_password = get_password_hash(user.password)
     db_user = User(
         email=user.email,
         password_hash=hashed_password,
-        storage_id=storage_id
+        firstname=user.firstname,
+        lastname=user.lastname,
+        phone=user.phone,
+        storage_id=storage_id,
+        status=UserStatus.PENDING,  # Set to pending for admin approval
+        role=UserRole.USER  # Set role to user by default
     )
     
     session.add(db_user)
@@ -58,8 +59,6 @@ async def register(user: UserCreate, session: Session = Depends(get_session)):
         session.commit()
         session.refresh(db_user)
     except Exception as e:
-        # If database commit fails, clean up the created storage
-        storage_service.delete_user_storage(storage_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create user: {str(e)}"
@@ -68,8 +67,14 @@ async def register(user: UserCreate, session: Session = Depends(get_session)):
     return UserResponse(
         id=db_user.id,
         email=db_user.email,
+        firstname=db_user.firstname,
+        lastname=db_user.lastname,
+        phone=db_user.phone,
         storage_id=db_user.storage_id,
+        role=db_user.role,
+        status=db_user.status,
         created_at=db_user.created_at,
+        approved_at=db_user.approved_at,
         is_active=db_user.is_active
     )
 
@@ -100,4 +105,23 @@ async def login(user: UserLogin, session: Session = Depends(get_session)):
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="bearer"
+    )
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_info(
+    current_user: User = Depends(get_current_user)
+):
+    """Get current user information"""
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        firstname=current_user.firstname,
+        lastname=current_user.lastname,
+        phone=current_user.phone,
+        storage_id=current_user.storage_id,
+        role=current_user.role,
+        status=current_user.status,
+        created_at=current_user.created_at,
+        approved_at=current_user.approved_at,
+        is_active=current_user.is_active
     )

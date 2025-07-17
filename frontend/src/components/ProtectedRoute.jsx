@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -20,6 +20,11 @@ const ProtectedRoute = ({ children }) => {
     const loginPath = isPhotosApp ? '/photos/login' : '/drive/login';
     
     return <Navigate to={loginPath} state={{ from: location }} replace />;
+  }
+
+  // Check admin requirement
+  if (requireAdmin && user.role !== 'admin') {
+    return <Navigate to="/drive" replace />;
   }
 
   return children;

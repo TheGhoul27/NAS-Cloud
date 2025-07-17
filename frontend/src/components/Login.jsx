@@ -107,12 +107,16 @@ const Login = () => {
             </p>
           </div>
 
-          {/* Success message */}
+          {/* Success/Info message */}
           {location.state?.message && (
             <div className={`${
-              isDark 
-                ? 'bg-green-500/10 border-green-500/30 text-green-400' 
-                : 'bg-green-50 border-green-200 text-green-800'
+              location.state?.type === 'info' 
+                ? isDark 
+                  ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
+                  : 'bg-blue-50 border-blue-200 text-blue-800'
+                : isDark 
+                  ? 'bg-green-500/10 border-green-500/30 text-green-400' 
+                  : 'bg-green-50 border-green-200 text-green-800'
             } border px-4 py-3 rounded-xl mb-6`}>
               {location.state.message}
             </div>

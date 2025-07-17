@@ -1,0 +1,339 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from sqlmodel import Session, select, desc
+from app.models.database import get_session, User, UserStatus, UserRole, AdminCredentials
+from app.schemas.auth import UserListResponse, UserApprovalRequest, UserPasswordChange
+from app.services.storage import storage_service
+from app.auth.auth import verify_password, get_password_hash
+from typing import List, Union
+from datetime import datetime
+from pydantic import BaseModel
+import secrets
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+security = HTTPBasic()
+
+class AdminPasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+def get_admin_credentials(session: Session):
+    """Get admin credentials from database or create defaults"""
+    statement = select(AdminCredentials).where(AdminCredentials.username == "admin")
+    admin_creds = session.exec(statement).first()
+    
+    if not admin_creds:
+        # Create default admin credentials
+        default_password_hash = get_password_hash("admin")
+        admin_creds = AdminCredentials(
+            username="admin",
+            password_hash=default_password_hash
+        )
+        session.add(admin_creds)
+        session.commit()
+        session.refresh(admin_creds)
+    
+    return admin_creds.username, admin_creds.password_hash
+
+def save_admin_credentials(session: Session, username: str, password: str):
+    """Save admin credentials to database"""
+    statement = select(AdminCredentials).where(AdminCredentials.username == username)
+    admin_creds = session.exec(statement).first()
+    
+    password_hash = get_password_hash(password)
+    
+    if admin_creds:
+        admin_creds.password_hash = password_hash
+        admin_creds.updated_at = datetime.utcnow()
+    else:
+        admin_creds = AdminCredentials(
+            username=username,
+            password_hash=password_hash
+        )
+        session.add(admin_creds)
+    
+    session.commit()
+    session.refresh(admin_creds)
+
+def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(security), session: Session = Depends(get_session)):
+    """Verify admin credentials using HTTP Basic Auth - supports both admin table and user admin role"""
+    
+    # First, check if it's the main admin account
+    try:
+        stored_username, stored_password_hash = get_admin_credentials(session)
+        if (credentials.username == stored_username and 
+            verify_password(credentials.password, stored_password_hash)):
+            return f"admin:{credentials.username}"
+    except Exception:
+        pass
+    
+    # Then, check if it's a user with admin role
+    try:
+        statement = select(User).where(
+            User.email == credentials.username,
+            User.role == UserRole.ADMIN,
+            User.status == UserStatus.APPROVED,
+            User.is_active == True
+        )
+        user = session.exec(statement).first()
+        
+        if user and verify_password(credentials.password, user.password_hash):
+            return f"user:{user.email}"
+    except Exception:
+        pass
+    
+    # If neither worked, raise authentication error
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid admin credentials",
+        headers={"WWW-Authenticate": "Basic"},
+    )
+
+@router.get("/users", response_model=List[UserListResponse])
+async def get_all_users(
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Get all users (admin only)"""
+    statement = select(User).order_by(desc(User.created_at))
+    users = session.exec(statement).all()
+    
+    return [
+        UserListResponse(
+            id=user.id or 0,
+            email=user.email,
+            firstname=user.firstname,
+            lastname=user.lastname,
+            phone=user.phone,
+            role=user.role,
+            status=user.status,
+            created_at=user.created_at,
+            approved_at=user.approved_at,
+            is_active=user.is_active
+        )
+        for user in users
+    ]
+
+@router.get("/users/pending", response_model=List[UserListResponse])
+async def get_pending_users(
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Get all pending users (admin only)"""
+    statement = select(User).where(User.status == UserStatus.PENDING).order_by(desc(User.created_at))
+    users = session.exec(statement).all()
+    
+    return [
+        UserListResponse(
+            id=user.id or 0,
+            email=user.email,
+            firstname=user.firstname,
+            lastname=user.lastname,
+            phone=user.phone,
+            role=user.role,
+            status=user.status,
+            created_at=user.created_at,
+            approved_at=user.approved_at,
+            is_active=user.is_active
+        )
+        for user in users
+    ]
+
+@router.post("/users/approve")
+async def approve_or_reject_user(
+    approval_request: UserApprovalRequest,
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Approve or reject a pending user (admin only)"""
+    # Find the user
+    statement = select(User).where(User.id == approval_request.user_id)
+    user = session.exec(statement).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if user.status != UserStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not in pending status"
+        )
+    
+    if approval_request.action == "approve":
+        user.status = UserStatus.APPROVED
+        user.approved_at = datetime.utcnow()
+        # No approved_by field needed since it's always admin
+        
+        # Create user storage folders when approved
+        try:
+            storage_paths = storage_service.create_user_storage(user.storage_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create user storage: {str(e)}"
+            )
+            
+    elif approval_request.action == "reject":
+        user.status = UserStatus.REJECTED
+        user.is_active = False
+        
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid action. Must be 'approve' or 'reject'"
+        )
+    
+    try:
+        session.commit()
+        session.refresh(user)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update user status: {str(e)}"
+        )
+    
+    return {
+        "message": f"User {approval_request.action}d successfully",
+        "user_id": user.id,
+        "status": user.status.value
+    }
+
+@router.post("/users/{user_id}/toggle-admin")
+async def toggle_user_admin_role(
+    user_id: int,
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Toggle user admin role (admin only)"""
+    # Find the user
+    statement = select(User).where(User.id == user_id)
+    user = session.exec(statement).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Toggle role
+    user.role = UserRole.ADMIN if user.role == UserRole.USER else UserRole.USER
+    
+    try:
+        session.commit()
+        session.refresh(user)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update user role: {str(e)}"
+        )
+    
+    return {
+        "message": f"User role updated to {user.role.value}",
+        "user_id": user.id,
+        "role": user.role.value
+    }
+
+@router.get("/dashboard")
+async def admin_dashboard(
+    admin_user: str = Depends(verify_admin_credentials)
+):
+    """Admin dashboard endpoint to verify access"""
+    return {
+        "message": "Welcome to admin dashboard",
+        "admin": admin_user
+    }
+
+@router.post("/change-password")
+async def change_admin_password(
+    password_data: AdminPasswordChange,
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Change admin password"""
+    # Check if this is the main admin or a user admin
+    if admin_user.startswith("admin:"):
+        # Main admin changing password
+        username, current_password_hash = get_admin_credentials(session)
+        
+        # Verify current password
+        if not verify_password(password_data.current_password, current_password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect"
+            )
+        
+        # Save new password
+        try:
+            save_admin_credentials(session, username, password_data.new_password)
+            return {"message": "Admin password changed successfully"}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to change password: {str(e)}"
+            )
+    else:
+        # User admin changing their own password
+        email = admin_user.split(":", 1)[1]
+        statement = select(User).where(User.email == email)
+        user = session.exec(statement).first()
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Verify current password
+        if not verify_password(password_data.current_password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect"
+            )
+        
+        # Save new password
+        try:
+            user.password_hash = get_password_hash(password_data.new_password)
+            session.commit()
+            return {"message": "Password changed successfully"}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to change password: {str(e)}"
+            )
+
+@router.post("/users/change-password")
+async def change_user_password(
+    password_data: UserPasswordChange,
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Change any user's password (admin only)"""
+    # Find the user
+    statement = select(User).where(User.id == password_data.user_id)
+    user = session.exec(statement).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Hash new password and save
+    try:
+        user.password_hash = get_password_hash(password_data.new_password)
+        session.commit()
+        session.refresh(user)
+        
+        return {
+            "message": f"Password changed successfully for user {user.email}",
+            "user_id": user.id,
+            "email": user.email
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to change user password: {str(e)}"
+        )
