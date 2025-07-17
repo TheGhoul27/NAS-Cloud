@@ -1,8 +1,189 @@
-# NAS-Cloud
+# NAS Cloud - Personal File Storage System
 
-A Python-first personal cloud solution providing Google Drive and Google Photos-like functionality for your NAS.
+A modern, self-hosted file storage and photo management system built with Python (FastAPI) and React.
 
 ## Features
+
+- **Dual Interface**: Separate login/register pages for Drive and Photos apps
+- **Unified Authentication**: Single API handles auth for both applications
+- **Modern UI**: Clean, responsive design with Tailwind CSS
+- **Secure**: JWT-based authentication with password hashing
+- **Extensible**: Modular architecture ready for additional features
+
+## Project Structure
+
+```
+NAS-Cloud/
+├── backend/                 # Python FastAPI backend
+│   ├── app/
+│   │   ├── api/            # API routes
+│   │   ├── auth/           # Authentication utilities
+│   │   ├── models/         # Database models
+│   │   ├── schemas/        # Pydantic schemas
+│   │   ├── services/       # Business logic
+│   │   └── main.py         # FastAPI application
+│   ├── requirements.txt    # Python dependencies
+│   └── .env               # Environment variables
+├── frontend/               # React frontend
+│   ├── src/
+│   │   ├── components/     # React components
+│   │   ├── contexts/       # React contexts
+│   │   ├── services/       # API services
+│   │   └── App.jsx        # Main app component
+│   └── package.json       # Node dependencies
+└── docker-compose.yml     # Development services
+```
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.9+
+- Node.js 18+
+- Docker & Docker Compose
+
+### 1. Clone the Repository
+
+```bash
+git clone <repository-url>
+cd NAS-Cloud
+```
+
+### 2. Start Database Services
+
+```bash
+docker-compose up -d
+```
+
+### 3. Start Backend (Terminal 1)
+
+**Windows:**
+```cmd
+start-backend.bat
+```
+
+**Linux/macOS:**
+```bash
+chmod +x start-backend.sh
+./start-backend.sh
+```
+
+**Manual setup:**
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 4. Start Frontend (Terminal 2)
+
+**Windows:**
+```cmd
+start-frontend.bat
+```
+
+**Linux/macOS:**
+```bash
+chmod +x start-frontend.sh
+./start-frontend.sh
+```
+
+**Manual setup:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Access the Applications
+
+- **Drive App**: http://localhost:3000/drive
+- **Photos App**: http://localhost:3000/photos
+- **API Documentation**: http://localhost:8000/docs
+
+## Authentication Flow
+
+1. Users can register/login through either the Drive or Photos interface
+2. Both interfaces use the same authentication API
+3. JWT tokens are stored in localStorage
+4. Protected routes redirect to appropriate login pages
+5. Users stay logged in across both applications
+
+## API Endpoints
+
+- `POST /auth/register` - User registration
+- `POST /auth/login` - User login
+- `GET /health` - Health check
+
+## Storage Structure
+
+When a user registers, the system automatically creates a dedicated folder structure:
+
+```
+nas_storage/
+└── users/
+    └── [12-digit-user-id]/
+        ├── drive/
+        │   ├── documents/
+        │   └── uploads/
+        └── photos/
+            ├── uploads/
+            └── thumbnails/
+```
+
+- Each user gets a unique 12-digit alphanumeric ID
+- The `drive` folder stores all file uploads from the Drive interface
+- The `photos` folder stores all photo/video uploads from the Photos interface
+- Thumbnails are automatically generated and cached in the `thumbnails` subfolder
+
+## Environment Variables
+
+Backend `.env` file:
+```
+DATABASE_URL=postgresql://nascloud:nascloud@localhost:5432/nascloud
+SECRET_KEY=your-secret-key-change-this-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+NAS_STORAGE_PATH=./nas_storage
+```
+
+**Important**: Set `NAS_STORAGE_PATH` to your actual NAS mount point in production.
+
+## Development Notes
+
+- The backend runs on port 8000
+- The frontend runs on port 3000 with API proxy configuration
+- Database runs on port 5432
+- Redis runs on port 6379 (for future job queue implementation)
+
+## Next Steps
+
+The current implementation provides:
+- ✅ User registration and authentication
+- ✅ Dual login interfaces (Drive/Photos)
+- ✅ Protected routes
+- ✅ JWT token management
+- ✅ Responsive UI design
+
+Coming next:
+- File upload and management
+- Photo timeline and gallery
+- Folder organization
+- Search functionality
+- Sharing capabilities
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
 
 - **Drive**: File management with upload, download, folder organization, and search
 - **Photos**: Timeline view with EXIF data, thumbnails, and lightbox gallery
