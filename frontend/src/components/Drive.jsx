@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { filesAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, FolderOpen, Upload, Plus, FolderPlus, File, Clock, MoreVertical, X, Folder, ArrowLeft, Home, ChevronRight, Eye, Download, FileText, FileImage, FileVideo, Music, Archive, FileSpreadsheet } from 'lucide-react';
+import { LogOut, FolderOpen, Upload, Plus, FolderPlus, File, Clock, MoreVertical, X, Folder, ArrowLeft, Home, ChevronRight, Eye, Download, FileText, FileImage, FileVideo, Music, Archive, FileSpreadsheet, Trash2 } from 'lucide-react';
 
 const Drive = () => {
   const { user, logout } = useAuth();
@@ -13,6 +13,8 @@ const Drive = () => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPath, setCurrentPath] = useState('');
+  const [recentFiles, setRecentFiles] = useState([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
 
   // Modal states
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
@@ -21,14 +23,28 @@ const Drive = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [creatingFolder, setCreatingFolder] = useState(false);
   
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  
   // Preview modal state
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
+
+  // Drag and drop state
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dragCounter, setDragCounter] = useState(0);
 
   // Fetch files when component mounts or path changes
   useEffect(() => {
     fetchFiles();
   }, [currentPath]);
+
+  // Fetch recent files when component mounts
+  useEffect(() => {
+    fetchRecentFiles();
+  }, []);
 
   const fetchFiles = async () => {
     try {
@@ -43,6 +59,18 @@ const Drive = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRecentFiles = async () => {
+    try {
+      setLoadingRecent(true);
+      const response = await filesAPI.getRecentFiles(5);
+      setRecentFiles(response.data.files);
+    } catch (error) {
+      console.error('Error fetching recent files:', error);
+    } finally {
+      setLoadingRecent(false);
     }
   };
 
@@ -66,6 +94,42 @@ const Drive = () => {
     setShowPreviewModal(true);
   };
 
+  const handleRecentFileClick = async (recentFile) => {
+    console.log('Recent file clicked:', recentFile);
+    
+    // Navigate to the folder containing the file and then open preview
+    const filePath = recentFile.path;
+    const folderPath = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
+    
+    console.log('Current path:', currentPath);
+    console.log('Target folder path:', folderPath);
+    
+    try {
+      if (folderPath !== currentPath) {
+        // If we need to navigate to a different folder, set the path first
+        console.log('Navigating to folder:', folderPath);
+        setCurrentPath(folderPath);
+        
+        // Wait a bit for the navigation to complete, then open preview
+        setTimeout(() => {
+          console.log('Opening preview for:', recentFile);
+          setPreviewFile(recentFile);
+          setShowPreviewModal(true);
+        }, 100);
+      } else {
+        // If we're already in the right folder, just open preview immediately
+        console.log('Opening preview directly for:', recentFile);
+        setPreviewFile(recentFile);
+        setShowPreviewModal(true);
+      }
+    } catch (error) {
+      console.error('Error handling recent file click:', error);
+      // Fallback: just open preview without navigation
+      setPreviewFile(recentFile);
+      setShowPreviewModal(true);
+    }
+  };
+
   const getPathBreadcrumbs = () => {
     if (!currentPath) return [];
     return currentPath.split('/');
@@ -76,21 +140,85 @@ const Drive = () => {
   };
 
   const handleFileSelect = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
 
+    // Upload each file
+    for (const file of files) {
+      await uploadSingleFile(file);
+    }
+    
+    // Reset file input and refresh files list after all uploads
+    event.target.value = '';
+    await fetchFiles();
+    await fetchRecentFiles();
+    setUploading(false);
+    setUploadProgress(0);
+  };
+
+  // Drag and Drop handlers
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Only count if it's actually files being dragged
+    if (e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
+      setDragCounter(prev => prev + 1);
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setDragCounter(prev => {
+      const newCount = prev - 1;
+      if (newCount <= 0) {
+        setIsDragOver(false);
+        return 0;
+      }
+      return newCount;
+    });
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    setDragCounter(0);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    // Upload each file
+    for (const file of files) {
+      await uploadSingleFile(file);
+    }
+    
+    // Refresh files list after all uploads
+    await fetchFiles();
+    await fetchRecentFiles();
+    setUploading(false);
+    setUploadProgress(0);
+  };
+
+  const uploadSingleFile = async (file) => {
     setUploading(true);
     setUploadProgress(0);
 
     try {
       const response = await filesAPI.uploadFile(file, currentPath);
-      
       console.log('File uploaded successfully:', response.data);
-      alert(`File "${file.name}" uploaded successfully!`);
       
-      // Reset file input and refresh files list
-      event.target.value = '';
-      await fetchFiles();
+      // Show success message without blocking for multiple files
+      const message = `File "${file.name}" uploaded successfully!`;
+      console.log(message);
       
     } catch (error) {
       console.error('Upload error:', error);
@@ -98,11 +226,8 @@ const Drive = () => {
         logout();
         navigate('/drive/login');
       } else {
-        alert('Failed to upload file. Please try again.');
+        alert(`Failed to upload file "${file.name}". Please try again.`);
       }
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
     }
   };
 
@@ -127,6 +252,7 @@ const Drive = () => {
       
       // Refresh files list
       await fetchFiles();
+      await fetchRecentFiles();
       
     } catch (error) {
       console.error('Create folder error:', error);
@@ -138,6 +264,32 @@ const Drive = () => {
       }
     } finally {
       setCreatingFolder(false);
+    }
+  };
+
+  const handleDelete = (item) => {
+    setItemToDelete(item);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+    
+    try {
+      setDeleting(true);
+      await filesAPI.deleteFile(itemToDelete.path);
+      
+      // Refresh the file list
+      await fetchFiles();
+      await fetchRecentFiles();
+      
+      setShowDeleteModal(false);
+      setItemToDelete(null);
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      alert('Failed to delete item. Please try again.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -234,7 +386,7 @@ const Drive = () => {
         type="file"
         onChange={handleFileSelect}
         className="hidden"
-        multiple={false}
+        multiple={true}
       />
 
       {/* Sidebar */}
@@ -255,7 +407,7 @@ const Drive = () => {
             className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
           >
             <Upload className="h-5 w-5 mr-2" />
-            {uploading ? `Uploading... ${uploadProgress}%` : 'Upload File'}
+            {uploading ? `Uploading... ${uploadProgress}%` : 'Upload Files'}
           </button>
           
           <button
@@ -278,10 +430,11 @@ const Drive = () => {
           </div>
           
           <div className="space-y-2">
-            {files.filter(file => !file.is_directory).slice(0, 5).map((file, index) => (
+            {recentFiles.map((file, index) => (
               <div
                 key={index}
                 className="flex items-center p-3 rounded-lg hover:bg-gray-50 cursor-pointer group transition-colors"
+                onClick={() => handleRecentFileClick(file)}
               >
                 <File className="h-5 w-5 mr-3 text-gray-500" />
                 <div className="flex-1 min-w-0">
@@ -297,9 +450,9 @@ const Drive = () => {
                 </button>
               </div>
             ))}
-            {files.filter(file => !file.is_directory).length === 0 && (
+            {recentFiles.length === 0 && (
               <p className="text-sm text-gray-500 text-center py-4">
-                No files yet
+                No recent files
               </p>
             )}
           </div>
@@ -369,7 +522,24 @@ const Drive = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-6">
+        <div 
+          className={`flex-1 p-6 relative ${isDragOver ? 'bg-blue-50 border-2 border-dashed border-blue-300' : ''}`}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* Drag and Drop Overlay */}
+          {isDragOver && (
+            <div className="absolute inset-0 bg-blue-100 bg-opacity-90 flex items-center justify-center z-50 pointer-events-none">
+              <div className="text-center">
+                <Upload className="h-16 w-16 text-blue-600 mx-auto mb-4" />
+                <h3 className="text-2xl font-bold text-blue-700 mb-2">Drop files here</h3>
+                <p className="text-blue-600">Release to upload files to this folder</p>
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="text-center py-16">
               <div className="text-4xl mb-4">📁</div>
@@ -389,7 +559,7 @@ const Drive = () => {
                   Get Started
                 </h3>
                 <p className="text-gray-600 text-sm mb-4">
-                  Upload your first file or create a folder to organize your files.
+                  Upload your first file, create a folder, or simply drag and drop files here to get started.
                 </p>
                 <div className="flex gap-3 justify-center">
                   <button
@@ -414,7 +584,13 @@ const Drive = () => {
               {/* Files and Folders Grid */}
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Files</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {/* Files and Folders Grid */}
+              <div className="mb-4 text-center">
+                <p className="text-gray-500 text-sm">
+                  💡 Tip: You can drag and drop files directly onto this area to upload them
+                </p>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
                   {files.map((item, index) => (
                     <div 
                       key={index} 
@@ -442,15 +618,27 @@ const Drive = () => {
                         
                         {/* Action buttons on hover */}
                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {item.is_directory ? (
-                            <div className="bg-white rounded p-1 shadow">
-                              <FolderOpen className="h-4 w-4 text-blue-600" />
-                            </div>
-                          ) : (
-                            <div className="bg-white rounded p-1 shadow">
-                              <Eye className="h-4 w-4 text-gray-600" />
-                            </div>
-                          )}
+                          <div className="flex space-x-1">
+                            {item.is_directory ? (
+                              <div className="bg-white rounded p-1 shadow">
+                                <FolderOpen className="h-4 w-4 text-blue-600" />
+                              </div>
+                            ) : (
+                              <div className="bg-white rounded p-1 shadow">
+                                <Eye className="h-4 w-4 text-gray-600" />
+                              </div>
+                            )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(item);
+                              }}
+                              className="bg-white rounded p-1 shadow hover:bg-red-50"
+                              title={`Delete ${item.is_directory ? 'folder' : 'file'}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -814,6 +1002,47 @@ const Drive = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && itemToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="text-center">
+              <Trash2 className="h-12 w-12 text-red-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Delete {itemToDelete.is_directory ? 'Folder' : 'File'}
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete "{itemToDelete.name}"?
+                {itemToDelete.is_directory && (
+                  <span className="block mt-2 text-sm text-red-600">
+                    This will permanently delete the folder and all its contents.
+                  </span>
+                )}
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setItemToDelete(null);
+                  }}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2 bg-gray-300 hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed text-gray-800 rounded-lg font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                >
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

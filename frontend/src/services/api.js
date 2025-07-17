@@ -74,6 +74,8 @@ export const filesAPI = {
   getStorageInfo: () => api.get('/files/storage-info'),
   viewFile: (filePath) => api.get(`/files/view/${filePath}`, { responseType: 'blob' }),
   downloadFile: (filePath) => api.get(`/files/download/${filePath}`, { responseType: 'blob' }),
+  deleteFile: (filePath) => api.delete(`/files/delete/${filePath}`),
+  getRecentFiles: (limit = 10) => api.get('/files/recent', { params: { limit } }),
   
   // Create authenticated URLs for direct use in src attributes
   getViewUrl: (filePath) => {

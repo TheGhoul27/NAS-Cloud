@@ -329,3 +329,124 @@ async def view_file(
             "X-Content-Type-Options": "nosniff"
         }
     )
+
+@router.delete("/delete/{file_path:path}")
+async def delete_file(
+    file_path: str,
+    current_user: User = Depends(get_current_user),
+    storage_paths: dict = Depends(get_current_user_storage)
+):
+    """Delete a file from user's storage"""
+    
+    # Sanitize the file path
+    safe_path = storage_service.sanitize_path(file_path)
+    
+    # Construct full path
+    base_path = storage_paths["drive_path"]
+    full_file_path = os.path.join(base_path, safe_path)
+    
+    # Check if file exists and is within user's storage
+    if not os.path.exists(full_file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File or folder not found"
+        )
+    
+    # Ensure the file is within the user's storage directory
+    try:
+        # Both paths should be absolute, normalize them for comparison
+        base_path_normalized = os.path.normpath(base_path).lower()
+        file_path_normalized = os.path.normpath(full_file_path).lower()
+        
+        # Check if the file is within the base directory
+        if not (file_path_normalized.startswith(base_path_normalized + os.sep) or file_path_normalized == base_path_normalized):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    try:
+        if os.path.isfile(full_file_path):
+            # Delete file
+            os.remove(full_file_path)
+            return {"message": "File deleted successfully", "type": "file"}
+        elif os.path.isdir(full_file_path):
+            # Delete folder and all its contents
+            shutil.rmtree(full_file_path)
+            return {"message": "Folder deleted successfully", "type": "folder"}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid file or folder"
+            )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied to delete this item"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete item: {str(e)}"
+        )
+
+@router.get("/recent")
+async def get_recent_files(
+    limit: int = 10,
+    current_user: User = Depends(get_current_user),
+    storage_paths: dict = Depends(get_current_user_storage)
+):
+    """Get recently modified files from user's storage"""
+    
+    base_path = storage_paths["drive_path"]
+    recent_files = []
+    
+    try:
+        # Walk through all files in user's storage
+        for root, dirs, files in os.walk(base_path):
+            for file_name in files:
+                # Skip hidden files
+                if file_name.startswith('.'):
+                    continue
+                    
+                file_path = os.path.join(root, file_name)
+                
+                # Get relative path from base_path
+                relative_path = os.path.relpath(file_path, base_path)
+                
+                file_info = {
+                    "name": file_name,
+                    "path": relative_path.replace(os.sep, '/'),  # Normalize path separators
+                    "is_directory": False,  # Recent files are always files, not directories
+                    "size": os.path.getsize(file_path),
+                    "type": mimetypes.guess_type(file_path)[0] or "application/octet-stream",
+                    "modified_at": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
+                    "modified_timestamp": os.path.getmtime(file_path)
+                }
+                recent_files.append(file_info)
+        
+        # Sort by modification time (most recent first) and limit results
+        recent_files.sort(key=lambda x: x["modified_timestamp"], reverse=True)
+        recent_files = recent_files[:limit]
+        
+        # Remove the timestamp field as it's only needed for sorting
+        for file_info in recent_files:
+            del file_info["modified_timestamp"]
+        
+        return {
+            "files": recent_files,
+            "count": len(recent_files)
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get recent files: {str(e)}"
+        )
