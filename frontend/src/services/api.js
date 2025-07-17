@@ -58,4 +58,33 @@ export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
 };
 
+export const filesAPI = {
+  listFiles: (path = '') => api.get('/files/list', { params: { path } }),
+  uploadFile: (file, path = '') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('path', path);
+    return api.post('/files/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  createFolder: (name, path = '') => api.post('/files/create-folder', { name, path }),
+  getStorageInfo: () => api.get('/files/storage-info'),
+  viewFile: (filePath) => api.get(`/files/view/${filePath}`, { responseType: 'blob' }),
+  downloadFile: (filePath) => api.get(`/files/download/${filePath}`, { responseType: 'blob' }),
+  
+  // Create authenticated URLs for direct use in src attributes
+  getViewUrl: (filePath) => {
+    const token = localStorage.getItem('access_token');
+    return `/api/files/view/${filePath}?token=${encodeURIComponent(token)}`;
+  },
+  
+  getDownloadUrl: (filePath) => {
+    const token = localStorage.getItem('access_token');
+    return `/api/files/download/${filePath}?token=${encodeURIComponent(token)}`;
+  },
+};
+
 export default api;

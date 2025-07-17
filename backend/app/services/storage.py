@@ -3,6 +3,7 @@ import shutil
 from pathlib import Path
 from typing import Optional
 import uuid
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -55,9 +56,9 @@ class StorageService:
         """Get all paths for a user"""
         user_path = self.users_path / user_id
         return {
-            "user_path": str(user_path),
-            "drive_path": str(user_path / "drive"),
-            "photos_path": str(user_path / "photos")
+            "user_path": str(user_path.absolute()),
+            "drive_path": str((user_path / "drive").absolute()),
+            "photos_path": str((user_path / "photos").absolute())
         }
     
     def user_storage_exists(self, user_id: str) -> bool:
@@ -87,6 +88,49 @@ class StorageService:
                     total_size += os.path.getsize(filepath)
         
         return total_size
+    
+    def sanitize_filename(self, filename: str) -> str:
+        """Sanitize a filename to be safe for the filesystem"""
+        # Remove any path separators
+        filename = os.path.basename(filename)
+        
+        # Replace dangerous characters with underscores
+        filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
+        
+        # Remove control characters
+        filename = re.sub(r'[\x00-\x1f\x7f]', '', filename)
+        
+        # Remove leading/trailing dots and spaces
+        filename = filename.strip('. ')
+        
+        # Ensure filename isn't empty
+        if not filename:
+            filename = "unnamed_file"
+        
+        # Limit length
+        if len(filename) > 255:
+            name, ext = os.path.splitext(filename)
+            filename = name[:255-len(ext)] + ext
+        
+        return filename
+    
+    def sanitize_path(self, path: str) -> str:
+        """Sanitize a path to prevent directory traversal attacks"""
+        # Normalize the path
+        path = os.path.normpath(path)
+        
+        # Remove any leading slashes or backslashes
+        path = path.lstrip('/\\')
+        
+        # Split into components and sanitize each
+        parts = []
+        for part in path.split(os.sep):
+            if part and part != '.' and part != '..':
+                sanitized_part = self.sanitize_filename(part)
+                if sanitized_part:
+                    parts.append(sanitized_part)
+        
+        return os.path.join(*parts) if parts else ""
 
 # Create a singleton instance
 storage_service = StorageService()

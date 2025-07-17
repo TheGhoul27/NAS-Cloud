@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlmodel import Session, select
 from app.models.database import get_session, User, UserRole, UserStatus
@@ -6,10 +6,31 @@ from app.auth.auth import verify_token
 from app.services.storage import storage_service
 from typing import Optional
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
+
+async def get_token(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> str:
+    """Extract token from Authorization header or query parameter"""
+    # First try Authorization header
+    if credentials and credentials.credentials:
+        return credentials.credentials
+    
+    # Then try query parameter
+    token = request.query_params.get('token')
+    if token:
+        return token
+    
+    # No token found
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    token: str = Depends(get_token),
     session: Session = Depends(get_session)
 ) -> User:
     """Get current authenticated user"""
@@ -20,7 +41,7 @@ async def get_current_user(
     )
     
     try:
-        email = verify_token(credentials.credentials, credentials_exception)
+        email = verify_token(token, credentials_exception)
         statement = select(User).where(User.email == email)
         user = session.exec(statement).first()
         
@@ -53,7 +74,8 @@ async def get_current_admin_user(
 
 def get_user_storage_paths(user: User) -> dict:
     """Get storage paths for a user"""
-    return storage_service.get_user_paths(user.storage_id)
+    paths = storage_service.get_user_paths(user.storage_id)
+    return paths
 
 async def get_current_user_storage(
     user: User = Depends(get_current_user)
