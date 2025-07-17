@@ -20,11 +20,11 @@ const Drive = () => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <FolderOpen className="h-8 w-8 text-blue-600 mr-3" />
-              <h1 className="text-xl font-semibold text-gray-900">NAS Cloud Drive</h1>
+              <h1 className="text-xl font-semibold text-gray-900">Cloud Drive</h1>
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-600">
-                <div>Welcome, {user?.email}</div>
+                <div>Welcome, {user?.firstname} {user?.lastname}</div>
                 {user?.storage_id && (
                   <div className="text-xs text-gray-500">ID: {user.storage_id}</div>
                 )}
