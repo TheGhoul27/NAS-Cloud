@@ -37,14 +37,7 @@ class StorageService:
         drive_path.mkdir(parents=True, exist_ok=True)
         photos_path.mkdir(parents=True, exist_ok=True)
         
-        # Create subdirectories for better organization
-        # Drive subdirectories
-        (drive_path / "documents").mkdir(exist_ok=True)
-        (drive_path / "uploads").mkdir(exist_ok=True)
-        
-        # Photos subdirectories
-        (photos_path / "uploads").mkdir(exist_ok=True)
-        (photos_path / "thumbnails").mkdir(exist_ok=True)
+        # Don't create any subdirectories - let users create them as needed
         
         return {
             "user_path": str(user_path),

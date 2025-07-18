@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
 from sqlmodel import Session
 from app.models.database import get_session, User
@@ -32,14 +32,22 @@ async def get_storage_info(
 
 @router.get("/list")
 async def list_files(
-    path: str = "",  # Relative path within user's drive
+    path: str = "",  # Relative path within user's storage area
+    context: str = "drive",  # "drive" or "photos" - determines which storage area to use
     current_user: User = Depends(get_current_user),
     storage_paths: dict = Depends(get_current_user_storage)
 ):
-    """List files and folders in user's drive"""
+    """List files and folders in user's storage area (drive or photos)"""
     
-    # Construct full path
-    base_path = storage_paths["drive_path"]
+    # Validate context
+    if context not in ["drive", "photos"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Context must be either 'drive' or 'photos'"
+        )
+    
+    # Construct full path based on context
+    base_path = storage_paths[f"{context}_path"]
     if path:
         # Ensure path is safe and within user's storage
         safe_path = storage_service.sanitize_path(path)
@@ -98,16 +106,25 @@ async def list_files(
 
 class CreateFolderRequest(BaseModel):
     name: str
-    path: str = ""  # Relative path within user's storage
+    path: str = ""  # Relative path within user's storage area
+    context: str = "drive"  # "drive" or "photos" - determines which storage area to use
 
 @router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
-    path: str = Form(""),  # Relative path within user's storage
+    path: str = Form(""),  # Relative path within user's storage area
+    context: str = Form("drive"),  # "drive" or "photos" - determines which storage area to use
     current_user: User = Depends(get_current_user),
     storage_paths: dict = Depends(get_current_user_storage)
 ):
-    """Upload a file to user's storage"""
+    """Upload a file to user's storage area (drive or photos)"""
+    
+    # Validate context
+    if context not in ["drive", "photos"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Context must be either 'drive' or 'photos'"
+        )
     
     # Validate file
     if not file.filename:
@@ -119,8 +136,8 @@ async def upload_file(
     # Sanitize filename
     safe_filename = storage_service.sanitize_filename(file.filename)
     
-    # Construct full path
-    base_path = storage_paths["drive_path"]
+    # Construct full path based on context
+    base_path = storage_paths[f"{context}_path"]
     if path:
         # Ensure path is safe and within user's storage
         safe_path = storage_service.sanitize_path(path)
@@ -176,7 +193,14 @@ async def create_folder(
     current_user: User = Depends(get_current_user),
     storage_paths: dict = Depends(get_current_user_storage)
 ):
-    """Create a new folder in user's storage"""
+    """Create a new folder in user's storage area (drive or photos)"""
+    
+    # Validate context
+    if folder_request.context not in ["drive", "photos"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Context must be either 'drive' or 'photos'"
+        )
     
     # Validate folder name
     if not folder_request.name.strip():
@@ -188,8 +212,8 @@ async def create_folder(
     # Sanitize folder name
     safe_folder_name = storage_service.sanitize_filename(folder_request.name.strip())
     
-    # Construct full path
-    base_path = storage_paths["drive_path"]
+    # Construct full path based on context
+    base_path = storage_paths[f"{folder_request.context}_path"]
     if folder_request.path:
         # Ensure path is safe and within user's storage
         safe_path = storage_service.sanitize_path(folder_request.path)
@@ -225,16 +249,24 @@ async def create_folder(
 @router.get("/download/{file_path:path}")
 async def download_file(
     file_path: str,
+    context: str = Query("drive", description="Storage context: 'drive' or 'photos'"),
     current_user: User = Depends(get_current_user),
     storage_paths: dict = Depends(get_current_user_storage)
 ):
-    """Download a file from user's storage"""
+    """Download a file from user's storage area (drive or photos)"""
+    
+    # Validate context
+    if context not in ["drive", "photos"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Context must be either 'drive' or 'photos'"
+        )
     
     # Sanitize the file path
     safe_path = storage_service.sanitize_path(file_path)
     
-    # Construct full path
-    base_path = storage_paths["drive_path"]
+    # Construct full path based on context
+    base_path = storage_paths[f"{context}_path"]
     full_file_path = os.path.join(base_path, safe_path)
     
     # Check if file exists and is within user's storage
@@ -276,16 +308,24 @@ async def download_file(
 @router.get("/view/{file_path:path}")
 async def view_file(
     file_path: str,
+    context: str = Query("drive", description="Storage context: 'drive' or 'photos'"),
     current_user: User = Depends(get_current_user),
     storage_paths: dict = Depends(get_current_user_storage)
 ):
-    """View/stream a file from user's storage with proper MIME type"""
+    """View/stream a file from user's storage area (drive or photos) with proper MIME type"""
+    
+    # Validate context
+    if context not in ["drive", "photos"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Context must be either 'drive' or 'photos'"
+        )
     
     # Sanitize the file path
     safe_path = storage_service.sanitize_path(file_path)
     
-    # Construct full path
-    base_path = storage_paths["drive_path"]
+    # Construct full path based on context
+    base_path = storage_paths[f"{context}_path"]
     full_file_path = os.path.join(base_path, safe_path)
     
     # Check if file exists and is within user's storage
@@ -333,16 +373,24 @@ async def view_file(
 @router.delete("/delete/{file_path:path}")
 async def delete_file(
     file_path: str,
+    context: str = Query("drive", description="Storage context: 'drive' or 'photos'"),
     current_user: User = Depends(get_current_user),
     storage_paths: dict = Depends(get_current_user_storage)
 ):
-    """Delete a file from user's storage"""
+    """Delete a file from user's storage area (drive or photos)"""
+    
+    # Validate context
+    if context not in ["drive", "photos"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Context must be either 'drive' or 'photos'"
+        )
     
     # Sanitize the file path
     safe_path = storage_service.sanitize_path(file_path)
     
-    # Construct full path
-    base_path = storage_paths["drive_path"]
+    # Construct full path based on context
+    base_path = storage_paths[f"{context}_path"]
     full_file_path = os.path.join(base_path, safe_path)
     
     # Check if file exists and is within user's storage
@@ -400,12 +448,20 @@ async def delete_file(
 @router.get("/recent")
 async def get_recent_files(
     limit: int = 10,
+    context: str = Query("drive", description="Storage context: 'drive' or 'photos'"),
     current_user: User = Depends(get_current_user),
     storage_paths: dict = Depends(get_current_user_storage)
 ):
-    """Get recently modified files from user's storage"""
+    """Get recently modified files from user's storage area (drive or photos)"""
     
-    base_path = storage_paths["drive_path"]
+    # Validate context
+    if context not in ["drive", "photos"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Context must be either 'drive' or 'photos'"
+        )
+    
+    base_path = storage_paths[f"{context}_path"]
     recent_files = []
     
     try:

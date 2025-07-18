@@ -59,33 +59,42 @@ export const authAPI = {
 };
 
 export const filesAPI = {
-  listFiles: (path = '') => api.get('/files/list', { params: { path } }),
-  uploadFile: (file, path = '') => {
+  listFiles: (path = '', context = 'drive') => api.get('/files/list', { params: { path, context } }),
+  uploadFile: (file, path = '', context = 'drive') => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('path', path);
+    formData.append('context', context);
     return api.post('/files/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
   },
-  createFolder: (name, path = '') => api.post('/files/create-folder', { name, path }),
+  createFolder: (name, path = '', context = 'drive') => api.post('/files/create-folder', { name, path, context }),
   getStorageInfo: () => api.get('/files/storage-info'),
-  viewFile: (filePath) => api.get(`/files/view/${filePath}`, { responseType: 'blob' }),
-  downloadFile: (filePath) => api.get(`/files/download/${filePath}`, { responseType: 'blob' }),
-  deleteFile: (filePath) => api.delete(`/files/delete/${filePath}`),
-  getRecentFiles: (limit = 10) => api.get('/files/recent', { params: { limit } }),
+  viewFile: (filePath, context = 'drive') => api.get(`/files/view/${filePath}`, { 
+    params: { context },
+    responseType: 'blob' 
+  }),
+  downloadFile: (filePath, context = 'drive') => api.get(`/files/download/${filePath}`, { 
+    params: { context },
+    responseType: 'blob' 
+  }),
+  deleteFile: (filePath, context = 'drive') => api.delete(`/files/delete/${filePath}`, { 
+    params: { context } 
+  }),
+  getRecentFiles: (limit = 10, context = 'drive') => api.get('/files/recent', { params: { limit, context } }),
   
   // Create authenticated URLs for direct use in src attributes
-  getViewUrl: (filePath) => {
+  getViewUrl: (filePath, context = 'drive') => {
     const token = localStorage.getItem('access_token');
-    return `/api/files/view/${filePath}?token=${encodeURIComponent(token)}`;
+    return `/api/files/view/${filePath}?context=${context}&token=${encodeURIComponent(token)}`;
   },
   
-  getDownloadUrl: (filePath) => {
+  getDownloadUrl: (filePath, context = 'drive') => {
     const token = localStorage.getItem('access_token');
-    return `/api/files/download/${filePath}?token=${encodeURIComponent(token)}`;
+    return `/api/files/download/${filePath}?context=${context}&token=${encodeURIComponent(token)}`;
   },
 };
 

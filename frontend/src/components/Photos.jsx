@@ -40,7 +40,7 @@ const Photos = () => {
   const fetchMediaFiles = async () => {
     try {
       setLoading(true);
-      const response = await filesAPI.listFiles('photos'); // Assuming photos are stored in a 'photos' directory
+      const response = await filesAPI.listFiles('', 'photos'); // Use photos context with empty path
       
       // Filter only image and video files, then sort by date (newest first)
       const mediaFiles = response.data.items
@@ -195,7 +195,7 @@ const Photos = () => {
     setUploadProgress(0);
 
     try {
-      const response = await filesAPI.uploadFile(file, 'photos'); // Upload to photos directory
+      const response = await filesAPI.uploadFile(file, '', 'photos'); // Upload to photos context with empty path
       console.log('Media file uploaded successfully:', response.data);
       
     } catch (error) {
@@ -224,7 +224,7 @@ const Photos = () => {
     
     try {
       setDeleting(true);
-      await filesAPI.deleteFile(itemToDelete.path);
+      await filesAPI.deleteFile(itemToDelete.path, 'photos');
       
       // Refresh the media list
       await fetchMediaFiles();
@@ -515,7 +515,7 @@ const Photos = () => {
                         <div className="aspect-square relative overflow-hidden rounded">
                           {getMediaType(item.type, item.name) === 'image' ? (
                             <img 
-                              src={filesAPI.getViewUrl(item.path)} 
+                              src={filesAPI.getViewUrl(item.path, 'photos')} 
                               alt={item.name}
                               className="w-full h-full object-cover"
                               loading="lazy"
@@ -523,7 +523,7 @@ const Photos = () => {
                           ) : (
                             <div className="w-full h-full bg-gray-900 flex items-center justify-center relative">
                               <video 
-                                src={filesAPI.getViewUrl(item.path)}
+                                src={filesAPI.getViewUrl(item.path, 'photos')}
                                 className="w-full h-full object-cover"
                                 muted
                                 preload="metadata"
@@ -642,7 +642,7 @@ const Photos = () => {
             }`}>
               {(() => {
                 const mediaType = getMediaType(previewFile.type, previewFile.name);
-                const viewUrl = filesAPI.getViewUrl(previewFile.path);
+                const viewUrl = filesAPI.getViewUrl(previewFile.path, 'photos');
                 
                 if (mediaType === 'image') {
                   return (
@@ -688,7 +688,7 @@ const Photos = () => {
             {/* Action Buttons */}
             <div className="flex gap-3">
               <button
-                onClick={() => window.open(filesAPI.getViewUrl(previewFile.path), '_blank')}
+                onClick={() => window.open(filesAPI.getViewUrl(previewFile.path, 'photos'), '_blank')}
                 className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
               >
                 <Eye className="h-4 w-4 mr-2" />
