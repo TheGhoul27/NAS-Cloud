@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { filesAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, FolderOpen, Upload, Plus, FolderPlus, File, Clock, MoreVertical, X, Folder, ArrowLeft, Home, ChevronRight, Eye, Download, FileText, FileImage, FileVideo, Music, Archive, FileSpreadsheet, Trash2, Sun, Moon } from 'lucide-react';
+import { LogOut, FolderOpen, Upload, Plus, FolderPlus, File, Clock, MoreVertical, X, Folder, ArrowLeft, Home, ChevronRight, Eye, Download, FileText, FileImage, FileVideo, Music, Archive, FileSpreadsheet, Trash2, Sun, Moon, Search, Filter } from 'lucide-react';
 
 const Drive = () => {
   const { user, logout } = useAuth();
@@ -37,6 +37,14 @@ const Drive = () => {
   // Drag and drop state
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchActive, setSearchActive] = useState(false);
+  const [selectedFileType, setSelectedFileType] = useState('');
+  const [showSearchFilters, setShowSearchFilters] = useState(false);
 
   // Fetch files when component mounts or path changes
   useEffect(() => {
@@ -300,6 +308,56 @@ const Drive = () => {
     navigate('/drive/login');
   };
 
+  const handleSearch = async (query, fileType = '') => {
+    if (!query || query.trim().length < 2) {
+      setSearchActive(false);
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await filesAPI.searchFiles(query.trim(), 'drive', fileType || null);
+      setSearchResults(response.data.results);
+      setSearchActive(true);
+    } catch (error) {
+      console.error('Search error:', error);
+      if (error.response?.status === 401) {
+        logout();
+        navigate('/drive/login');
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSearchInputChange = (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    
+    // Debounce search
+    const timeoutId = setTimeout(() => {
+      handleSearch(query, selectedFileType);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearchActive(false);
+    setSelectedFileType('');
+    setShowSearchFilters(false);
+  };
+
+  const handleFileTypeFilter = (fileType) => {
+    setSelectedFileType(fileType);
+    if (searchQuery.trim().length >= 2) {
+      handleSearch(searchQuery, fileType);
+    }
+  };
+
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -502,9 +560,9 @@ const Drive = () => {
           }`}>
           <div className="px-6 py-4">
             <div className="flex justify-between items-center h-8">
-              <div className="flex items-center">
+              <div className="flex items-center flex-1 mr-6">
                 {/* Breadcrumb Navigation */}
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 mr-6">
                   <button
                     onClick={handleHomeClick}
                     className={`flex items-center px-3 py-1 rounded transition-colors ${
@@ -550,6 +608,90 @@ const Drive = () => {
                         isDark ? 'text-white' : 'text-gray-900'
                       }`}>Back</span>
                     </button>
+                  )}
+                </div>
+
+                {/* Search Bar */}
+                <div className="flex-1 max-w-md">
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className={`h-4 w-4 transition-colors duration-200 ${
+                        isDark ? 'text-gray-400' : 'text-gray-500'
+                      }`} />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Search files and folders..."
+                      value={searchQuery}
+                      onChange={handleSearchInputChange}
+                      className={`block w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
+                        isDark 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
+                    {searchQuery && (
+                      <div className="absolute inset-y-0 right-0 flex items-center">
+                        <button
+                          onClick={() => setShowSearchFilters(!showSearchFilters)}
+                          className={`p-1 mr-1 rounded transition-colors ${
+                            isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                          } ${selectedFileType ? 'text-blue-500' : ''}`}
+                          title="Filter by file type"
+                        >
+                          <Filter className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={clearSearch}
+                          className={`p-1 mr-2 rounded transition-colors ${
+                            isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                          }`}
+                          title="Clear search"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Search Filters Dropdown */}
+                  {showSearchFilters && searchQuery && (
+                    <div className={`absolute mt-2 w-64 rounded-lg shadow-lg border z-10 transition-colors duration-200 ${
+                      isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                    }`}>
+                      <div className="p-3">
+                        <h4 className={`text-sm font-medium mb-2 transition-colors duration-200 ${
+                          isDark ? 'text-white' : 'text-gray-900'
+                        }`}>Filter by type:</h4>
+                        <div className="grid grid-cols-2 gap-1">
+                          {[
+                            { value: '', label: 'All files', icon: '📁' },
+                            { value: 'image', label: 'Images', icon: '🖼️' },
+                            { value: 'video', label: 'Videos', icon: '🎥' },
+                            { value: 'audio', label: 'Audio', icon: '🎵' },
+                            { value: 'document', label: 'Documents', icon: '📄' },
+                            { value: 'archive', label: 'Archives', icon: '🗜️' },
+                          ].map((filter) => (
+                            <button
+                              key={filter.value}
+                              onClick={() => {
+                                handleFileTypeFilter(filter.value);
+                                setShowSearchFilters(false);
+                              }}
+                              className={`text-left px-2 py-1 text-xs rounded transition-colors ${
+                                selectedFileType === filter.value
+                                  ? 'bg-blue-500 text-white'
+                                  : isDark
+                                    ? 'hover:bg-gray-700 text-gray-300'
+                                    : 'hover:bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {filter.icon} {filter.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -635,6 +777,157 @@ const Drive = () => {
               <p className={`transition-colors duration-200 ${
                 isDark ? 'text-gray-400' : 'text-gray-600'
               }`}>Loading your files...</p>
+            </div>
+          ) : searchActive ? (
+            /* Search Results */
+            <div>
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-lg font-semibold transition-colors duration-200 ${
+                    isDark ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Search Results
+                  </h3>
+                  <button
+                    onClick={clearSearch}
+                    className={`text-sm px-3 py-1 rounded transition-colors ${
+                      isDark 
+                        ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    Back to Files
+                  </button>
+                </div>
+                
+                {isSearching ? (
+                  <div className="text-center py-8">
+                    <div className="text-2xl mb-2">🔍</div>
+                    <p className={`transition-colors duration-200 ${
+                      isDark ? 'text-gray-400' : 'text-gray-600'
+                    }`}>Searching...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className={`text-sm mb-4 transition-colors duration-200 ${
+                      isDark ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
+                      {selectedFileType && (
+                        <span className="ml-2 px-2 py-1 bg-blue-500 text-white text-xs rounded">
+                          {selectedFileType}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {searchResults.length === 0 ? (
+                      <div className="text-center py-16">
+                        <div className="text-4xl mb-4">🔍</div>
+                        <h3 className={`text-lg font-semibold mb-2 transition-colors duration-200 ${
+                          isDark ? 'text-white' : 'text-gray-900'
+                        }`}>No results found</h3>
+                        <p className={`transition-colors duration-200 ${
+                          isDark ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          Try adjusting your search terms or removing filters
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                        {searchResults.map((item, index) => (
+                          <div 
+                            key={index} 
+                            className={`rounded-lg border p-4 hover:shadow-md transition-all duration-200 cursor-pointer group relative ${
+                              isDark 
+                                ? 'bg-gray-800 border-gray-700 hover:bg-gray-750' 
+                                : 'bg-white border-gray-200 hover:bg-gray-50'
+                            }`}
+                            onClick={() => {
+                              if (item.is_directory) {
+                                // Navigate to folder and clear search
+                                setCurrentPath(item.path);
+                                clearSearch();
+                              } else {
+                                handleFilePreview(item);
+                              }
+                            }}
+                          >
+                            <div className="text-center">
+                              <div className="text-3xl mb-2">
+                                {item.is_directory ? 
+                                  <Folder className="h-8 w-8 text-blue-500 mx-auto" /> : 
+                                  getFileIcon(getFileTypeCategory(item.type, item.name))
+                                }
+                              </div>
+                              <div className={`text-sm font-medium truncate transition-colors duration-200 ${
+                                isDark ? 'text-white' : 'text-gray-900'
+                              }`} title={item.name}>
+                                {item.name}
+                              </div>
+                              {!item.is_directory && (
+                                <div className={`text-xs mt-1 transition-colors duration-200 ${
+                                  isDark ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                  {formatFileSize(item.size)}
+                                </div>
+                              )}
+                              <div className={`text-xs mt-1 transition-colors duration-200 ${
+                                isDark ? 'text-gray-500' : 'text-gray-400'
+                              }`}>
+                                {formatDate(item.modified_at)}
+                              </div>
+                              
+                              {/* Path indicator for search results */}
+                              {item.path.includes('/') && (
+                                <div className={`text-xs mt-1 truncate transition-colors duration-200 ${
+                                  isDark ? 'text-blue-400' : 'text-blue-600'
+                                }`} title={item.path}>
+                                  📁 {item.path.substring(0, item.path.lastIndexOf('/'))}
+                                </div>
+                              )}
+                              
+                              {/* Action buttons on hover */}
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  {item.is_directory ? (
+                                    <div className={`rounded p-1 shadow transition-colors duration-200 ${
+                                      isDark ? 'bg-gray-700' : 'bg-white'
+                                    }`}>
+                                      <FolderOpen className="h-4 w-4 text-blue-600" />
+                                    </div>
+                                  ) : (
+                                    <div className={`rounded p-1 shadow transition-colors duration-200 ${
+                                      isDark ? 'bg-gray-700' : 'bg-white'
+                                    }`}>
+                                      <Eye className={`h-4 w-4 transition-colors duration-200 ${
+                                        isDark ? 'text-gray-400' : 'text-gray-600'
+                                      }`} />
+                                    </div>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDelete(item);
+                                    }}
+                                    className={`rounded p-1 shadow transition-colors duration-200 ${
+                                      isDark 
+                                        ? 'bg-gray-700 hover:bg-red-900' 
+                                        : 'bg-white hover:bg-red-50'
+                                    }`}
+                                    title={`Delete ${item.is_directory ? 'folder' : 'file'}`}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           ) : files.length === 0 ? (
             <div className="text-center py-16">

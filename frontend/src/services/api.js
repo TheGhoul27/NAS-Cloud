@@ -85,6 +85,9 @@ export const filesAPI = {
     params: { context } 
   }),
   getRecentFiles: (limit = 10, context = 'drive') => api.get('/files/recent', { params: { limit, context } }),
+  searchFiles: (query, context = 'drive', fileType = null) => api.get('/files/search', { 
+    params: { query, context, file_type: fileType } 
+  }),
   
   // Create authenticated URLs for direct use in src attributes
   getViewUrl: (filePath, context = 'drive') => {

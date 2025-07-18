@@ -506,3 +506,154 @@ async def get_recent_files(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get recent files: {str(e)}"
         )
+
+@router.get("/search")
+async def search_files(
+    query: str = Query(..., description="Search query"),
+    context: str = Query("drive", description="Storage context: 'drive' or 'photos'"),
+    file_type: str = Query(None, description="Filter by file type: image, video, audio, document, archive, etc."),
+    current_user: User = Depends(get_current_user),
+    storage_paths: dict = Depends(get_current_user_storage)
+):
+    """Search for files and folders in user's storage area"""
+    
+    # Validate context
+    if context not in ["drive", "photos"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Context must be either 'drive' or 'photos'"
+        )
+    
+    # Validate query
+    if not query or len(query.strip()) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Search query must be at least 2 characters long"
+        )
+    
+    base_path = storage_paths[f"{context}_path"]
+    search_results = []
+    query_lower = query.strip().lower()
+    
+    try:
+        # Walk through all files and folders in user's storage
+        for root, dirs, files in os.walk(base_path):
+            # Filter directories to skip hidden ones
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            
+            # Get relative path from base_path
+            relative_root = os.path.relpath(root, base_path)
+            if relative_root == '.':
+                relative_root = ''
+            
+            # Search in directory names
+            for dir_name in dirs:
+                if query_lower in dir_name.lower():
+                    dir_path = os.path.join(root, dir_name)
+                    relative_path = os.path.join(relative_root, dir_name) if relative_root else dir_name
+                    
+                    search_results.append({
+                        "name": dir_name,
+                        "path": relative_path.replace(os.sep, '/'),
+                        "is_directory": True,
+                        "size": 0,
+                        "type": "folder",
+                        "modified_at": datetime.fromtimestamp(os.path.getmtime(dir_path)).isoformat(),
+                        "match_type": "name"
+                    })
+            
+            # Search in file names
+            for file_name in files:
+                # Skip hidden files
+                if file_name.startswith('.'):
+                    continue
+                
+                file_path = os.path.join(root, file_name)
+                relative_path = os.path.join(relative_root, file_name) if relative_root else file_name
+                
+                # Check if file name matches query
+                if query_lower in file_name.lower():
+                    file_size = os.path.getsize(file_path)
+                    mime_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
+                    
+                    # Determine file type category
+                    file_category = _get_file_category(mime_type, file_name)
+                    
+                    # Apply file type filter if specified
+                    if file_type and file_category != file_type.lower():
+                        continue
+                    
+                    search_results.append({
+                        "name": file_name,
+                        "path": relative_path.replace(os.sep, '/'),
+                        "is_directory": False,
+                        "size": file_size,
+                        "type": mime_type,
+                        "category": file_category,
+                        "modified_at": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
+                        "match_type": "name"
+                    })
+        
+        # Sort results: directories first, then files, both by relevance and name
+        search_results.sort(key=lambda x: (
+            not x["is_directory"],  # Directories first
+            not x["name"].lower().startswith(query_lower),  # Exact prefix matches first
+            x["name"].lower()  # Then alphabetically
+        ))
+        
+        return {
+            "query": query,
+            "context": context,
+            "file_type_filter": file_type,
+            "results": search_results,
+            "total_count": len(search_results),
+            "folder_count": sum(1 for item in search_results if item["is_directory"]),
+            "file_count": sum(1 for item in search_results if not item["is_directory"])
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search files: {str(e)}"
+        )
+
+def _get_file_category(mime_type, filename):
+    """Helper function to categorize files by type"""
+    if not mime_type and not filename:
+        return 'other'
+    
+    extension = filename.split('.').pop().lower() if filename and '.' in filename else ''
+    
+    # Images
+    if mime_type and mime_type.startswith('image/'):
+        return 'image'
+    
+    # Videos
+    if (mime_type and mime_type.startswith('video/')) or extension in ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv']:
+        return 'video'
+    
+    # Audio
+    if (mime_type and mime_type.startswith('audio/')) or extension in ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma']:
+        return 'audio'
+    
+    # PDFs
+    if mime_type == 'application/pdf' or extension == 'pdf':
+        return 'pdf'
+    
+    # Office Documents
+    if extension in ['doc', 'docx'] or (mime_type and 'wordprocessingml' in mime_type):
+        return 'document'
+    if extension in ['xls', 'xlsx'] or (mime_type and 'spreadsheetml' in mime_type):
+        return 'spreadsheet'
+    if extension in ['ppt', 'pptx'] or (mime_type and 'presentationml' in mime_type):
+        return 'presentation'
+    
+    # Text files
+    if (mime_type and mime_type.startswith('text/')) or extension in ['txt', 'md', 'json', 'xml', 'csv']:
+        return 'text'
+    
+    # Archives
+    if extension in ['zip', 'rar', '7z', 'tar', 'gz']:
+        return 'archive'
+    
+    return 'other'
