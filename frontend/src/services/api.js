@@ -89,6 +89,13 @@ export const filesAPI = {
     params: { query, context, file_type: fileType } 
   }),
   
+  // Trash operations
+  listTrash: () => api.get('/files/trash'),
+  restoreFromTrash: (trashId) => api.post(`/files/trash/${trashId}/restore`),
+  permanentlyDelete: (trashId) => api.delete(`/files/trash/${trashId}/permanent`),
+  emptyTrash: () => api.delete('/files/trash/empty'),
+  cleanupTrash: () => api.post('/files/trash/cleanup'),
+  
   // Create authenticated URLs for direct use in src attributes
   getViewUrl: (filePath, context = 'drive') => {
     const token = localStorage.getItem('access_token');

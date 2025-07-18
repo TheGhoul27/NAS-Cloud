@@ -407,6 +407,19 @@ const Photos = () => {
                 Supported formats: JPG, PNG, GIF, MP4, MOV, and more
               </p>
             </div>
+            
+            {/* Trash Section */}
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => navigate('/photos/trash')}
+                className={`w-full flex items-center p-3 rounded-lg transition-colors ${
+                  isDark ? 'hover:bg-gray-700 text-gray-300 hover:text-white' : 'hover:bg-gray-50 text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Trash2 className="h-5 w-5 mr-3" />
+                <span className="text-sm font-medium">Trash</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1028,14 +1041,14 @@ const Photos = () => {
               <h3 className={`text-lg font-semibold mb-2 transition-colors duration-200 ${
                 isDark ? 'text-white' : 'text-gray-900'
               }`}>
-                Delete Media File
+                Move to Trash
               </h3>
               <p className={`mb-6 transition-colors duration-200 ${
                 isDark ? 'text-gray-300' : 'text-gray-600'
               }`}>
-                Are you sure you want to delete "{itemToDelete.name}"?
-                <span className="block mt-2 text-sm text-red-600">
-                  This action cannot be undone.
+                Are you sure you want to move "{itemToDelete.name}" to trash?
+                <span className="block mt-2 text-sm text-gray-500">
+                  You can restore it from the trash within 30 days.
                 </span>
               </p>
               <div className="flex space-x-3">
@@ -1058,7 +1071,7 @@ const Photos = () => {
                   disabled={deleting}
                   className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
                 >
-                  {deleting ? 'Deleting...' : 'Delete'}
+                  {deleting ? 'Moving to Trash...' : 'Move to Trash'}
                 </button>
               </div>
             </div>

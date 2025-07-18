@@ -545,6 +545,19 @@ const Drive = () => {
               </p>
             )}
           </div>
+          
+          {/* Trash Section */}
+          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => navigate('/drive/trash')}
+              className={`w-full flex items-center p-3 rounded-lg transition-colors ${
+                isDark ? 'hover:bg-gray-700 text-gray-300 hover:text-white' : 'hover:bg-gray-50 text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Trash2 className="h-5 w-5 mr-3" />
+              <span className="text-sm font-medium">Trash</span>
+            </button>
+          </div>
           </div>
         </div>
       </div>
@@ -1438,15 +1451,18 @@ const Drive = () => {
             <div className="text-center">
               <Trash2 className="h-12 w-12 text-red-600 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Delete {itemToDelete.is_directory ? 'Folder' : 'File'}
+                Move to Trash
               </h3>
               <p className="text-gray-600 mb-6">
-                Are you sure you want to delete "{itemToDelete.name}"?
+                Are you sure you want to move "{itemToDelete.name}" to trash?
                 {itemToDelete.is_directory && (
-                  <span className="block mt-2 text-sm text-red-600">
-                    This will permanently delete the folder and all its contents.
+                  <span className="block mt-2 text-sm text-orange-600">
+                    This will move the folder and all its contents to trash.
                   </span>
                 )}
+                <span className="block mt-2 text-sm text-gray-500">
+                  You can restore it from the trash within 30 days.
+                </span>
               </p>
               <div className="flex space-x-3">
                 <button
@@ -1464,7 +1480,7 @@ const Drive = () => {
                   disabled={deleting}
                   className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
                 >
-                  {deleting ? 'Deleting...' : 'Delete'}
+                  {deleting ? 'Moving to Trash...' : 'Move to Trash'}
                 </button>
               </div>
             </div>

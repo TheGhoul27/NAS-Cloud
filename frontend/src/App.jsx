@@ -7,6 +7,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 import Drive from './components/Drive';
 import Photos from './components/Photos';
+import Trash from './components/Trash';
 import AdminLogin from './components/AdminLogin';
 import AdminPanel from './components/AdminPanel';
 
@@ -22,6 +23,11 @@ function App() {
           {/* Drive App Routes */}
           <Route path="/drive/login" element={<Login />} />
           <Route path="/drive/register" element={<Register />} />
+          <Route path="/drive/trash" element={
+            <ProtectedRoute>
+              <Trash />
+            </ProtectedRoute>
+          } />
           <Route path="/drive" element={
             <ProtectedRoute>
               <Drive />
@@ -31,6 +37,11 @@ function App() {
           {/* Photos App Routes */}
           <Route path="/photos/login" element={<Login />} />
           <Route path="/photos/register" element={<Register />} />
+          <Route path="/photos/trash" element={
+            <ProtectedRoute>
+              <Trash />
+            </ProtectedRoute>
+          } />
           <Route path="/photos" element={
             <ProtectedRoute>
               <Photos />

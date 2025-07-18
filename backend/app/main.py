@@ -4,6 +4,7 @@ from app.api.auth import router as auth_router
 from app.api.files import router as files_router
 from app.api.admin import router as admin_router
 from app.models.database import create_db_and_tables
+from app.services.trash_cleanup import trash_cleanup_service
 
 app = FastAPI(title="NAS Cloud API", version="1.0.0")
 
@@ -29,6 +30,13 @@ app.include_router(admin_router, prefix="/api")
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+    # Start the background trash cleanup service
+    trash_cleanup_service.start_background_cleanup()
+
+@app.on_event("shutdown")
+def on_shutdown():
+    # Stop the background trash cleanup service
+    trash_cleanup_service.stop_background_cleanup()
 
 @app.get("/")
 def read_root():

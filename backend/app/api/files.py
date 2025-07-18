@@ -9,7 +9,8 @@ import os
 import shutil
 from pathlib import Path
 import mimetypes
-from datetime import datetime
+from datetime import datetime, timedelta
+import json
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -371,13 +372,13 @@ async def view_file(
     )
 
 @router.delete("/delete/{file_path:path}")
-async def delete_file(
+async def move_to_trash(
     file_path: str,
     context: str = Query("drive", description="Storage context: 'drive' or 'photos'"),
     current_user: User = Depends(get_current_user),
     storage_paths: dict = Depends(get_current_user_storage)
 ):
-    """Delete a file from user's storage area (drive or photos)"""
+    """Move a file or folder to trash (soft delete)"""
     
     # Validate context
     if context not in ["drive", "photos"]:
@@ -421,19 +422,40 @@ async def delete_file(
         )
     
     try:
-        if os.path.isfile(full_file_path):
-            # Delete file
-            os.remove(full_file_path)
-            return {"message": "File deleted successfully", "type": "file"}
-        elif os.path.isdir(full_file_path):
-            # Delete folder and all its contents
-            shutil.rmtree(full_file_path)
-            return {"message": "Folder deleted successfully", "type": "folder"}
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid file or folder"
-            )
+        # Create trash directory if it doesn't exist
+        trash_dir = os.path.join(storage_paths['user_path'], '.trash')
+        os.makedirs(trash_dir, exist_ok=True)
+        
+        # Generate unique filename for trash
+        original_name = os.path.basename(full_file_path)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        trash_filename = f"{timestamp}_{original_name}"
+        trash_file_path = os.path.join(trash_dir, trash_filename)
+        
+        # Create metadata for the trashed item
+        metadata = {
+            "original_path": file_path,
+            "original_name": original_name,
+            "context": context,
+            "deleted_at": datetime.now().isoformat(),
+            "is_directory": os.path.isdir(full_file_path),
+            "size": _get_size(full_file_path) if os.path.exists(full_file_path) else 0
+        }
+        
+        # Move file/folder to trash
+        shutil.move(full_file_path, trash_file_path)
+        
+        # Save metadata
+        metadata_file = f"{trash_file_path}.meta"
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f)
+        
+        return {
+            "message": f"{'Folder' if metadata['is_directory'] else 'File'} moved to trash successfully",
+            "type": "folder" if metadata['is_directory'] else "file",
+            "trash_id": trash_filename
+        }
+        
     except PermissionError:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -442,7 +464,7 @@ async def delete_file(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete item: {str(e)}"
+            detail=f"Failed to move item to trash: {str(e)}"
         )
 
 @router.get("/recent")
@@ -657,3 +679,296 @@ def _get_file_category(mime_type, filename):
         return 'archive'
     
     return 'other'
+
+def _get_size(path):
+    """Helper function to get size of file or directory"""
+    if os.path.isfile(path):
+        return os.path.getsize(path)
+    elif os.path.isdir(path):
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(path):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                try:
+                    total_size += os.path.getsize(filepath)
+                except (OSError, IOError):
+                    pass
+        return total_size
+    return 0
+
+@router.get("/trash")
+async def list_trash(
+    current_user: User = Depends(get_current_user),
+    storage_paths: dict = Depends(get_current_user_storage)
+):
+    """List items in trash"""
+    
+    trash_dir = os.path.join(storage_paths['user_path'], '.trash')
+    
+    if not os.path.exists(trash_dir):
+        return {
+            "items": [],
+            "total_count": 0
+        }
+    
+    trash_items = []
+    
+    try:
+        for item in os.listdir(trash_dir):
+            if item.endswith('.meta'):
+                continue
+                
+            item_path = os.path.join(trash_dir, item)
+            metadata_file = f"{item_path}.meta"
+            
+            if os.path.exists(metadata_file):
+                try:
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                    
+                    # Calculate days in trash
+                    deleted_at = datetime.fromisoformat(metadata['deleted_at'])
+                    days_in_trash = (datetime.now() - deleted_at).days
+                    
+                    trash_items.append({
+                        "trash_id": item,
+                        "original_name": metadata['original_name'],
+                        "original_path": metadata['original_path'],
+                        "context": metadata['context'],
+                        "is_directory": metadata['is_directory'],
+                        "size": metadata.get('size', 0),
+                        "deleted_at": metadata['deleted_at'],
+                        "days_in_trash": days_in_trash,
+                        "expires_in_days": max(0, 30 - days_in_trash)
+                    })
+                except (json.JSONDecodeError, KeyError):
+                    # Skip items with invalid metadata
+                    continue
+        
+        # Sort by deletion date (most recent first)
+        trash_items.sort(key=lambda x: x['deleted_at'], reverse=True)
+        
+        return {
+            "items": trash_items,
+            "total_count": len(trash_items)
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list trash items: {str(e)}"
+        )
+
+@router.post("/trash/{trash_id}/restore")
+async def restore_from_trash(
+    trash_id: str,
+    current_user: User = Depends(get_current_user),
+    storage_paths: dict = Depends(get_current_user_storage)
+):
+    """Restore an item from trash to its original location"""
+    
+    trash_dir = os.path.join(storage_paths['user_path'], '.trash')
+    trash_item_path = os.path.join(trash_dir, trash_id)
+    metadata_file = f"{trash_item_path}.meta"
+    
+    if not os.path.exists(trash_item_path) or not os.path.exists(metadata_file):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trash item not found"
+        )
+    
+    try:
+        # Load metadata
+        with open(metadata_file, 'r') as f:
+            metadata = json.load(f)
+        
+        # Construct original path
+        context = metadata['context']
+        original_path = metadata['original_path']
+        base_path = storage_paths[f"{context}_path"]
+        restore_path = os.path.join(base_path, original_path)
+        
+        # Check if original location is available
+        if os.path.exists(restore_path):
+            # Generate a new name if conflict exists
+            name, ext = os.path.splitext(metadata['original_name'])
+            counter = 1
+            
+            if metadata['is_directory']:
+                new_name = f"{name} (restored {counter})"
+                while os.path.exists(os.path.join(os.path.dirname(restore_path), new_name)):
+                    counter += 1
+                    new_name = f"{name} (restored {counter})"
+                restore_path = os.path.join(os.path.dirname(restore_path), new_name)
+            else:
+                new_name = f"{name} (restored {counter}){ext}"
+                while os.path.exists(os.path.join(os.path.dirname(restore_path), new_name)):
+                    counter += 1
+                    new_name = f"{name} (restored {counter}){ext}"
+                restore_path = os.path.join(os.path.dirname(restore_path), new_name)
+        
+        # Ensure target directory exists
+        os.makedirs(os.path.dirname(restore_path), exist_ok=True)
+        
+        # Move back from trash
+        shutil.move(trash_item_path, restore_path)
+        
+        # Remove metadata file
+        os.remove(metadata_file)
+        
+        return {
+            "message": f"{'Folder' if metadata['is_directory'] else 'File'} restored successfully",
+            "original_name": metadata['original_name'],
+            "restored_path": os.path.relpath(restore_path, base_path).replace(os.sep, '/'),
+            "context": context
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to restore item: {str(e)}"
+        )
+
+@router.delete("/trash/{trash_id}/permanent")
+async def permanently_delete(
+    trash_id: str,
+    current_user: User = Depends(get_current_user),
+    storage_paths: dict = Depends(get_current_user_storage)
+):
+    """Permanently delete an item from trash"""
+    
+    trash_dir = os.path.join(storage_paths['user_path'], '.trash')
+    trash_item_path = os.path.join(trash_dir, trash_id)
+    metadata_file = f"{trash_item_path}.meta"
+    
+    if not os.path.exists(trash_item_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trash item not found"
+        )
+    
+    try:
+        # Load metadata for response
+        metadata = {}
+        if os.path.exists(metadata_file):
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+        
+        # Permanently delete the item
+        if os.path.isfile(trash_item_path):
+            os.remove(trash_item_path)
+        elif os.path.isdir(trash_item_path):
+            shutil.rmtree(trash_item_path)
+        
+        # Remove metadata file
+        if os.path.exists(metadata_file):
+            os.remove(metadata_file)
+        
+        return {
+            "message": f"{'Folder' if metadata.get('is_directory', False) else 'File'} permanently deleted",
+            "original_name": metadata.get('original_name', 'Unknown')
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to permanently delete item: {str(e)}"
+        )
+
+@router.delete("/trash/empty")
+async def empty_trash(
+    current_user: User = Depends(get_current_user),
+    storage_paths: dict = Depends(get_current_user_storage)
+):
+    """Empty the entire trash (permanently delete all items)"""
+    
+    trash_dir = os.path.join(storage_paths['user_path'], '.trash')
+    
+    if not os.path.exists(trash_dir):
+        return {
+            "message": "Trash is already empty",
+            "deleted_count": 0
+        }
+    
+    deleted_count = 0
+    
+    try:
+        for item in os.listdir(trash_dir):
+            item_path = os.path.join(trash_dir, item)
+            
+            if os.path.isfile(item_path):
+                os.remove(item_path)
+                if not item.endswith('.meta'):
+                    deleted_count += 1
+            elif os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+                deleted_count += 1
+        
+        return {
+            "message": f"Trash emptied successfully. {deleted_count} items permanently deleted.",
+            "deleted_count": deleted_count
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to empty trash: {str(e)}"
+        )
+
+@router.post("/trash/cleanup")
+async def cleanup_old_trash(
+    current_user: User = Depends(get_current_user),
+    storage_paths: dict = Depends(get_current_user_storage)
+):
+    """Clean up trash items older than 30 days"""
+    
+    trash_dir = os.path.join(storage_paths['user_path'], '.trash')
+    
+    if not os.path.exists(trash_dir):
+        return {
+            "message": "No trash to clean up",
+            "deleted_count": 0
+        }
+    
+    deleted_count = 0
+    cutoff_date = datetime.now() - timedelta(days=30)
+    
+    try:
+        for item in os.listdir(trash_dir):
+            if item.endswith('.meta'):
+                continue
+                
+            item_path = os.path.join(trash_dir, item)
+            metadata_file = f"{item_path}.meta"
+            
+            if os.path.exists(metadata_file):
+                try:
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                    
+                    deleted_at = datetime.fromisoformat(metadata['deleted_at'])
+                    
+                    if deleted_at < cutoff_date:
+                        # Delete the item and its metadata
+                        if os.path.isfile(item_path):
+                            os.remove(item_path)
+                        elif os.path.isdir(item_path):
+                            shutil.rmtree(item_path)
+                        
+                        os.remove(metadata_file)
+                        deleted_count += 1
+                        
+                except (json.JSONDecodeError, KeyError, ValueError):
+                    # Skip items with invalid metadata
+                    continue
+        
+        return {
+            "message": f"Cleaned up {deleted_count} items older than 30 days",
+            "deleted_count": deleted_count
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to cleanup trash: {str(e)}"
+        )
