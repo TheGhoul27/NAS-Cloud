@@ -394,11 +394,12 @@ const Drive = () => {
       />
 
       {/* Sidebar */}
-      <div className={`w-80 shadow-lg border-r flex flex-col transition-colors duration-200 ${
-        isDark 
-          ? 'bg-gray-800 border-gray-700' 
-          : 'bg-white border-gray-200'
-      }`}>
+      <div className="w-80 p-4 flex flex-col">
+        <div className={`rounded-lg shadow-lg border flex flex-col h-full transition-colors duration-200 ${
+          isDark 
+            ? 'bg-gray-800 border-gray-700' 
+            : 'bg-white border-gray-200'
+        }`}>
         {/* Sidebar Header */}
         <div className={`px-6 py-4 border-b transition-colors duration-200 ${
           isDark ? 'border-gray-700' : 'border-gray-200'
@@ -486,43 +487,51 @@ const Drive = () => {
               </p>
             )}
           </div>
+          </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <div className={`shadow-sm border-b transition-colors duration-200 ${
+      <div className="flex-1 flex flex-col m-4">
+        <div className={`rounded-lg shadow-lg border overflow-hidden transition-colors duration-200 ${
           isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
         }`}>
+          {/* Header */}
+          <div className={`border-b transition-colors duration-200 ${
+            isDark ? 'border-gray-700' : 'border-gray-200'
+          }`}>
           <div className="px-6 py-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center h-8">
               <div className="flex items-center">
                 {/* Breadcrumb Navigation */}
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={handleHomeClick}
-                    className={`flex items-center px-2 py-1 rounded transition-colors ${
+                    className={`flex items-center px-3 py-1 rounded transition-colors ${
                       isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
                     }`}
                   >
-                    <Home className="h-4 w-4 mr-1" />
-                    <span className={`text-sm font-medium transition-colors duration-200 ${
+                    <Home className="h-5 w-5 mr-2" />
+                    <span className={`text-xl font-semibold transition-colors duration-200 ${
                       isDark ? 'text-white' : 'text-gray-900'
                     }`}>Home</span>
                   </button>
                   
                   {getPathBreadcrumbs().map((folder, index) => (
                     <div key={index} className="flex items-center">
-                      <ChevronRight className="h-4 w-4 text-gray-400 mx-1" />
+                      <ChevronRight className="h-5 w-5 text-gray-400 mx-2" />
                       <button
                         onClick={() => {
                           const pathParts = getPathBreadcrumbs().slice(0, index + 1);
                           setCurrentPath(pathParts.join('/'));
                         }}
-                        className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                        className={`px-3 py-1 rounded transition-colors ${
+                          isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                        }`}
                       >
-                        <span className="text-sm font-medium text-gray-700">{folder}</span>
+                        <span className={`text-xl font-medium transition-colors duration-200 ${
+                          isDark ? 'text-gray-300' : 'text-gray-700'
+                        }`}>{folder}</span>
                       </button>
                     </div>
                   ))}
@@ -530,10 +539,16 @@ const Drive = () => {
                   {currentPath && (
                     <button
                       onClick={handleBackClick}
-                      className="flex items-center px-3 py-1 ml-4 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                      className={`flex items-center px-4 py-1 ml-4 rounded transition-colors ${
+                        isDark 
+                          ? 'bg-gray-700 hover:bg-gray-600' 
+                          : 'bg-gray-100 hover:bg-gray-200'
+                      }`}
                     >
-                      <ArrowLeft className="h-4 w-4 mr-1" />
-                      <span className="text-sm">Back</span>
+                      <ArrowLeft className="h-5 w-5 mr-2" />
+                      <span className={`text-xl font-medium transition-colors duration-200 ${
+                        isDark ? 'text-white' : 'text-gray-900'
+                      }`}>Back</span>
                     </button>
                   )}
                 </div>
@@ -581,20 +596,20 @@ const Drive = () => {
           </div>
         </div>
 
-        {/* Main Content */}
-        <div 
-          className={`flex-1 p-6 relative transition-colors duration-200 ${
-            isDragOver 
-              ? isDark 
-                ? 'bg-blue-900 border-2 border-dashed border-blue-400' 
-                : 'bg-blue-50 border-2 border-dashed border-blue-300'
-              : ''
-          }`}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-        >
+          {/* Main Content */}
+          <div 
+            className={`flex-1 p-6 relative transition-colors duration-200 ${
+              isDragOver 
+                ? isDark 
+                  ? 'bg-blue-900 border-2 border-dashed border-blue-400' 
+                  : 'bg-blue-50 border-2 border-dashed border-blue-300'
+                : ''
+            }`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
           {/* Drag and Drop Overlay */}
           {isDragOver && (
             <div className={`absolute inset-0 bg-opacity-90 flex items-center justify-center z-50 pointer-events-none transition-colors duration-200 ${
@@ -756,7 +771,8 @@ const Drive = () => {
                 </div>
               </div>
             </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
