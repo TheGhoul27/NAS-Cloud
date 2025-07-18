@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { filesAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, FolderOpen, Upload, Plus, FolderPlus, File, Clock, MoreVertical, X, Folder, ArrowLeft, Home, ChevronRight, Eye, Download, FileText, FileImage, FileVideo, Music, Archive, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { LogOut, FolderOpen, Upload, Plus, FolderPlus, File, Clock, MoreVertical, X, Folder, ArrowLeft, Home, ChevronRight, Eye, Download, FileText, FileImage, FileVideo, Music, Archive, FileSpreadsheet, Trash2, Sun, Moon } from 'lucide-react';
 
 const Drive = () => {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme, isDark } = useTheme();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   
@@ -379,7 +381,9 @@ const Drive = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className={`min-h-screen flex transition-colors duration-200 ${
+      isDark ? 'bg-gray-900' : 'bg-gray-50'
+    }`}>
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -390,12 +394,20 @@ const Drive = () => {
       />
 
       {/* Sidebar */}
-      <div className="w-80 bg-white shadow-lg border-r border-gray-200 flex flex-col">
+      <div className={`w-80 shadow-lg border-r flex flex-col transition-colors duration-200 ${
+        isDark 
+          ? 'bg-gray-800 border-gray-700' 
+          : 'bg-white border-gray-200'
+      }`}>
         {/* Sidebar Header */}
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className={`px-6 py-4 border-b transition-colors duration-200 ${
+          isDark ? 'border-gray-700' : 'border-gray-200'
+        }`}>
           <div className="flex items-center">
             <FolderOpen className="h-8 w-8 text-blue-600 mr-3" />
-            <h1 className="text-xl font-semibold text-gray-900">My Drive</h1>
+            <h1 className={`text-xl font-semibold transition-colors duration-200 ${
+              isDark ? 'text-white' : 'text-gray-900'
+            }`}>My Drive</h1>
           </div>
         </div>
 
@@ -413,7 +425,11 @@ const Drive = () => {
           <button
             onClick={handleCreateFolder}
             disabled={uploading || creatingFolder}
-            className="w-full flex items-center justify-center px-4 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 rounded-lg font-medium transition-colors"
+            className={`w-full flex items-center justify-center px-4 py-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors ${
+              isDark 
+                ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
           >
             <FolderPlus className="h-5 w-5 mr-2" />
             {creatingFolder ? 'Creating...' : 'New Folder'}
@@ -423,7 +439,9 @@ const Drive = () => {
         {/* Recent Files Section */}
         <div className="flex-1 px-6 pb-6">
           <div className="mb-4">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+            <h3 className={`text-sm font-semibold mb-3 flex items-center transition-colors duration-200 ${
+              isDark ? 'text-white' : 'text-gray-900'
+            }`}>
               <Clock className="h-4 w-4 mr-2" />
               Recent Files
             </h3>
@@ -433,20 +451,32 @@ const Drive = () => {
             {recentFiles.map((file, index) => (
               <div
                 key={index}
-                className="flex items-center p-3 rounded-lg hover:bg-gray-50 cursor-pointer group transition-colors"
+                className={`flex items-center p-3 rounded-lg cursor-pointer group transition-colors ${
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                }`}
                 onClick={() => handleRecentFileClick(file)}
               >
-                <File className="h-5 w-5 mr-3 text-gray-500" />
+                <File className={`h-5 w-5 mr-3 transition-colors duration-200 ${
+                  isDark ? 'text-gray-400' : 'text-gray-500'
+                }`} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p className={`text-sm font-medium truncate transition-colors duration-200 ${
+                    isDark ? 'text-white' : 'text-gray-900'
+                  }`}>
                     {file.name}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className={`text-xs transition-colors duration-200 ${
+                    isDark ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
                     {formatFileSize(file.size)} • {formatDate(file.modified_at)}
                   </p>
                 </div>
-                <button className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 transition-opacity">
-                  <MoreVertical className="h-4 w-4 text-gray-400" />
+                <button className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity ${
+                  isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                }`}>
+                  <MoreVertical className={`h-4 w-4 transition-colors duration-200 ${
+                    isDark ? 'text-gray-500' : 'text-gray-400'
+                  }`} />
                 </button>
               </div>
             ))}
@@ -462,7 +492,9 @@ const Drive = () => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-white shadow-sm border-b">
+        <div className={`shadow-sm border-b transition-colors duration-200 ${
+          isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+        }`}>
           <div className="px-6 py-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center">
@@ -470,10 +502,14 @@ const Drive = () => {
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={handleHomeClick}
-                    className="flex items-center px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                    className={`flex items-center px-2 py-1 rounded transition-colors ${
+                      isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                    }`}
                   >
                     <Home className="h-4 w-4 mr-1" />
-                    <span className="text-sm font-medium">Home</span>
+                    <span className={`text-sm font-medium transition-colors duration-200 ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>Home</span>
                   </button>
                   
                   {getPathBreadcrumbs().map((folder, index) => (
@@ -503,15 +539,39 @@ const Drive = () => {
                 </div>
               </div>
               <div className="flex items-center space-x-4">
-                <div className="text-sm text-gray-600">
+                <div className={`text-sm transition-colors duration-200 ${
+                  isDark ? 'text-gray-300' : 'text-gray-600'
+                }`}>
                   <div>Welcome, {user?.firstname} {user?.lastname}</div>
                   {user?.storage_id && (
-                    <div className="text-xs text-gray-500">ID: {user.storage_id}</div>
+                    <div className={`text-xs transition-colors duration-200 ${
+                      isDark ? 'text-gray-400' : 'text-gray-500'
+                    }`}>ID: {user.storage_id}</div>
                   )}
                 </div>
                 <button
+                  onClick={toggleTheme}
+                  className={`flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${
+                    isDark 
+                      ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
+                      : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                  title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+                >
+                  {isDark ? (
+                    <Sun className="h-4 w-4 mr-1" />
+                  ) : (
+                    <Moon className="h-4 w-4 mr-1" />
+                  )}
+                  {isDark ? 'Light' : 'Dark'}
+                </button>
+                <button
                   onClick={handleLogout}
-                  className="flex items-center px-3 py-2 text-sm text-gray-700 hover:text-gray-900"
+                  className={`flex items-center px-3 py-2 text-sm transition-colors ${
+                    isDark 
+                      ? 'text-gray-300 hover:text-white' 
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
                 >
                   <LogOut className="h-4 w-4 mr-1" />
                   Sign Out
@@ -523,7 +583,13 @@ const Drive = () => {
 
         {/* Main Content */}
         <div 
-          className={`flex-1 p-6 relative ${isDragOver ? 'bg-blue-50 border-2 border-dashed border-blue-300' : ''}`}
+          className={`flex-1 p-6 relative transition-colors duration-200 ${
+            isDragOver 
+              ? isDark 
+                ? 'bg-blue-900 border-2 border-dashed border-blue-400' 
+                : 'bg-blue-50 border-2 border-dashed border-blue-300'
+              : ''
+          }`}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
@@ -531,11 +597,19 @@ const Drive = () => {
         >
           {/* Drag and Drop Overlay */}
           {isDragOver && (
-            <div className="absolute inset-0 bg-blue-100 bg-opacity-90 flex items-center justify-center z-50 pointer-events-none">
+            <div className={`absolute inset-0 bg-opacity-90 flex items-center justify-center z-50 pointer-events-none transition-colors duration-200 ${
+              isDark ? 'bg-blue-900' : 'bg-blue-100'
+            }`}>
               <div className="text-center">
-                <Upload className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-                <h3 className="text-2xl font-bold text-blue-700 mb-2">Drop files here</h3>
-                <p className="text-blue-600">Release to upload files to this folder</p>
+                <Upload className={`h-16 w-16 mx-auto mb-4 transition-colors duration-200 ${
+                  isDark ? 'text-blue-400' : 'text-blue-600'
+                }`} />
+                <h3 className={`text-2xl font-bold mb-2 transition-colors duration-200 ${
+                  isDark ? 'text-blue-300' : 'text-blue-700'
+                }`}>Drop files here</h3>
+                <p className={`transition-colors duration-200 ${
+                  isDark ? 'text-blue-400' : 'text-blue-600'
+                }`}>Release to upload files to this folder</p>
               </div>
             </div>
           )}
@@ -543,22 +617,34 @@ const Drive = () => {
           {loading ? (
             <div className="text-center py-16">
               <div className="text-4xl mb-4">📁</div>
-              <p className="text-gray-600">Loading your files...</p>
+              <p className={`transition-colors duration-200 ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              }`}>Loading your files...</p>
             </div>
           ) : files.length === 0 ? (
             <div className="text-center py-16">
               <div className="text-6xl mb-4">📁</div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Your Drive</h2>
-              <p className="text-gray-600 mb-8">
+              <h2 className={`text-2xl font-bold mb-2 transition-colors duration-200 ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>Welcome to Your Drive</h2>
+              <p className={`mb-8 transition-colors duration-200 ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              }`}>
                 Your personal file storage and management system
               </p>
               
-              <div className="bg-white rounded-lg shadow p-8 max-w-md mx-auto">
+              <div className={`rounded-lg shadow p-8 max-w-md mx-auto transition-colors duration-200 ${
+                isDark ? 'bg-gray-800' : 'bg-white'
+              }`}>
                 <Upload className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className={`text-lg font-semibold mb-2 transition-colors duration-200 ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>
                   Get Started
                 </h3>
-                <p className="text-gray-600 text-sm mb-4">
+                <p className={`text-sm mb-4 transition-colors duration-200 ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                   Upload your first file, create a folder, or simply drag and drop files here to get started.
                 </p>
                 <div className="flex gap-3 justify-center">
@@ -583,10 +669,14 @@ const Drive = () => {
             <div>
               {/* Files and Folders Grid */}
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Files</h3>
+                <h3 className={`text-lg font-semibold mb-4 transition-colors duration-200 ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>Your Files</h3>
                 {/* Files and Folders Grid */}
               <div className="mb-4 text-center">
-                <p className="text-gray-500 text-sm">
+                <p className={`text-sm transition-colors duration-200 ${
+                  isDark ? 'text-gray-400' : 'text-gray-500'
+                }`}>
                   💡 Tip: You can drag and drop files directly onto this area to upload them
                 </p>
               </div>
@@ -594,7 +684,11 @@ const Drive = () => {
                   {files.map((item, index) => (
                     <div 
                       key={index} 
-                      className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer group relative"
+                      className={`rounded-lg border p-4 hover:shadow-md transition-all duration-200 cursor-pointer group relative ${
+                        isDark 
+                          ? 'bg-gray-800 border-gray-700 hover:bg-gray-750' 
+                          : 'bg-white border-gray-200 hover:bg-gray-50'
+                      }`}
                       onClick={() => item.is_directory ? handleFolderClick(item.name) : handleFilePreview(item)}
                     >
                       <div className="text-center">
@@ -604,15 +698,21 @@ const Drive = () => {
                             getFileIcon(getFileTypeCategory(item.type, item.name))
                           }
                         </div>
-                        <div className="text-sm font-medium text-gray-900 truncate" title={item.name}>
+                        <div className={`text-sm font-medium truncate transition-colors duration-200 ${
+                          isDark ? 'text-white' : 'text-gray-900'
+                        }`} title={item.name}>
                           {item.name}
                         </div>
                         {!item.is_directory && (
-                          <div className="text-xs text-gray-500 mt-1">
+                          <div className={`text-xs mt-1 transition-colors duration-200 ${
+                            isDark ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
                             {formatFileSize(item.size)}
                           </div>
                         )}
-                        <div className="text-xs text-gray-400 mt-1">
+                        <div className={`text-xs mt-1 transition-colors duration-200 ${
+                          isDark ? 'text-gray-500' : 'text-gray-400'
+                        }`}>
                           {formatDate(item.modified_at)}
                         </div>
                         
@@ -620,12 +720,18 @@ const Drive = () => {
                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <div className="flex space-x-1">
                             {item.is_directory ? (
-                              <div className="bg-white rounded p-1 shadow">
+                              <div className={`rounded p-1 shadow transition-colors duration-200 ${
+                                isDark ? 'bg-gray-700' : 'bg-white'
+                              }`}>
                                 <FolderOpen className="h-4 w-4 text-blue-600" />
                               </div>
                             ) : (
-                              <div className="bg-white rounded p-1 shadow">
-                                <Eye className="h-4 w-4 text-gray-600" />
+                              <div className={`rounded p-1 shadow transition-colors duration-200 ${
+                                isDark ? 'bg-gray-700' : 'bg-white'
+                              }`}>
+                                <Eye className={`h-4 w-4 transition-colors duration-200 ${
+                                  isDark ? 'text-gray-400' : 'text-gray-600'
+                                }`} />
                               </div>
                             )}
                             <button
@@ -633,7 +739,11 @@ const Drive = () => {
                                 e.stopPropagation();
                                 handleDelete(item);
                               }}
-                              className="bg-white rounded p-1 shadow hover:bg-red-50"
+                              className={`rounded p-1 shadow transition-colors duration-200 ${
+                                isDark 
+                                  ? 'bg-gray-700 hover:bg-red-900' 
+                                  : 'bg-white hover:bg-red-50'
+                              }`}
                               title={`Delete ${item.is_directory ? 'folder' : 'file'}`}
                             >
                               <Trash2 className="h-4 w-4 text-red-600" />
@@ -653,15 +763,21 @@ const Drive = () => {
       {/* File Preview Modal */}
       {showPreviewModal && previewFile && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+          <div className={`rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto transition-colors duration-200 ${
+            isDark ? 'bg-gray-800' : 'bg-white'
+          }`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">{previewFile.name}</h3>
+              <h3 className={`text-lg font-semibold transition-colors duration-200 ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>{previewFile.name}</h3>
               <button
                 onClick={() => {
                   setShowPreviewModal(false);
                   setPreviewFile(null);
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className={`transition-colors ${
+                  isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'
+                }`}
               >
                 <X className="h-5 w-5" />
               </button>
