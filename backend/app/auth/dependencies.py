@@ -74,7 +74,7 @@ async def get_current_admin_user(
 
 def get_user_storage_paths(user: User) -> dict:
     """Get storage paths for a user"""
-    paths = storage_service.get_user_paths(user.storage_id)
+    paths = storage_service.get_user_paths(user.storage_id, drive_id=user.storage_drive_id)
     return paths
 
 async def get_current_user_storage(

@@ -60,15 +60,12 @@ export const authAPI = {
 
 export const filesAPI = {
   listFiles: (path = '', context = 'drive') => api.get('/files/list', { params: { path, context } }),
-  uploadFile: (file, path = '', context = 'drive') => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('path', path);
-    formData.append('context', context);
+  uploadFile: (formData, config = {}) => {
     return api.post('/files/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      ...config
     });
   },
   createFolder: (name, path = '', context = 'drive') => api.post('/files/create-folder', { name, path, context }),
@@ -89,6 +86,9 @@ export const filesAPI = {
     params: { query, context, file_type: fileType } 
   }),
   
+  // Specific context shortcuts
+  getPhotos: (path = '') => api.get('/files/list', { params: { path, context: 'photos' } }),
+  
   // Trash operations
   listTrash: () => api.get('/files/trash'),
   restoreFromTrash: (trashId) => api.post(`/files/trash/${trashId}/restore`),
@@ -99,11 +99,13 @@ export const filesAPI = {
   // Create authenticated URLs for direct use in src attributes
   getViewUrl: (filePath, context = 'drive') => {
     const token = localStorage.getItem('access_token');
+    // Don't encode the entire path, just the individual path segments if needed
     return `/api/files/view/${filePath}?context=${context}&token=${encodeURIComponent(token)}`;
   },
   
   getDownloadUrl: (filePath, context = 'drive') => {
     const token = localStorage.getItem('access_token');
+    // Don't encode the entire path, just the individual path segments if needed
     return `/api/files/download/${filePath}?context=${context}&token=${encodeURIComponent(token)}`;
   },
 };

@@ -20,7 +20,21 @@ async def get_storage_info(
     storage_paths: dict = Depends(get_current_user_storage)
 ):
     """Get current user's storage information"""
-    storage_size = storage_service.get_user_storage_size(current_user.storage_id)
+    storage_size = storage_service.get_user_storage_size(
+        current_user.storage_id, 
+        drive_id=current_user.storage_drive_id
+    )
+    
+    # Get drive information
+    drive_info = None
+    if current_user.storage_drive_id:
+        drive = storage_service.get_drive_by_id(current_user.storage_drive_id)
+        if drive:
+            drive_info = {
+                "id": drive.id,
+                "name": drive.name,
+                "path": drive.path
+            }
     
     return {
         "user_id": current_user.id,
@@ -28,7 +42,8 @@ async def get_storage_info(
         "email": current_user.email,
         "storage_paths": storage_paths,
         "storage_size_bytes": storage_size,
-        "storage_size_mb": round(storage_size / (1024 * 1024), 2)
+        "storage_size_mb": round(storage_size / (1024 * 1024), 2),
+        "drive_info": drive_info
     }
 
 @router.get("/list")
@@ -75,15 +90,16 @@ async def list_files(
             item_info = {
                 "name": item_name,
                 "path": os.path.join(path, item_name) if path else item_name,
+                "type": "folder" if os.path.isdir(item_path) else "file",
                 "is_directory": os.path.isdir(item_path),
-                "modified_at": datetime.fromtimestamp(os.path.getmtime(item_path)).isoformat(),
+                "modified": datetime.fromtimestamp(os.path.getmtime(item_path)).isoformat(),
             }
             
             if not item_info["is_directory"]:
                 # File-specific info
                 item_info.update({
                     "size": os.path.getsize(item_path),
-                    "type": mimetypes.guess_type(item_path)[0] or "application/octet-stream"
+                    "mimeType": mimetypes.guess_type(item_path)[0] or "application/octet-stream"
                 })
             
             items.append(item_info)
@@ -502,10 +518,11 @@ async def get_recent_files(
                 file_info = {
                     "name": file_name,
                     "path": relative_path.replace(os.sep, '/'),  # Normalize path separators
+                    "type": "file",
                     "is_directory": False,  # Recent files are always files, not directories
                     "size": os.path.getsize(file_path),
-                    "type": mimetypes.guess_type(file_path)[0] or "application/octet-stream",
-                    "modified_at": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
+                    "mimeType": mimetypes.guess_type(file_path)[0] or "application/octet-stream",
+                    "modified": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
                     "modified_timestamp": os.path.getmtime(file_path)
                 }
                 recent_files.append(file_info)
@@ -577,10 +594,10 @@ async def search_files(
                     search_results.append({
                         "name": dir_name,
                         "path": relative_path.replace(os.sep, '/'),
+                        "type": "folder",
                         "is_directory": True,
                         "size": 0,
-                        "type": "folder",
-                        "modified_at": datetime.fromtimestamp(os.path.getmtime(dir_path)).isoformat(),
+                        "modified": datetime.fromtimestamp(os.path.getmtime(dir_path)).isoformat(),
                         "match_type": "name"
                     })
             
@@ -608,11 +625,12 @@ async def search_files(
                     search_results.append({
                         "name": file_name,
                         "path": relative_path.replace(os.sep, '/'),
+                        "type": "file",
                         "is_directory": False,
                         "size": file_size,
-                        "type": mime_type,
+                        "mimeType": mime_type,
                         "category": file_category,
-                        "modified_at": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
+                        "modified": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
                         "match_type": "name"
                     })
         

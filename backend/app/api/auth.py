@@ -40,6 +40,10 @@ async def register(user: UserCreate, session: Session = Depends(get_session)):
             break
         storage_id = storage_service.generate_user_id()
     
+    # Get default drive for new user
+    default_drive = storage_service.get_default_drive()
+    storage_drive_id = default_drive.id if default_drive else None
+    
     # Create new user with pending status (will be approved by admin)
     hashed_password = get_password_hash(user.password)
     db_user = User(
@@ -49,6 +53,7 @@ async def register(user: UserCreate, session: Session = Depends(get_session)):
         lastname=user.lastname,
         phone=user.phone,
         storage_id=storage_id,
+        storage_drive_id=storage_drive_id,
         status=UserStatus.PENDING,  # Set to pending for admin approval
         role=UserRole.USER  # Set role to user by default
     )

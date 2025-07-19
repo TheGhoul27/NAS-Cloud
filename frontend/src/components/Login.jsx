@@ -42,16 +42,12 @@ const Login = () => {
     <div className={`min-h-screen ${isDark 
       ? 'bg-gradient-to-br from-gray-900 via-slate-900 to-gray-900' 
       : 'bg-gradient-to-br from-sky-100 via-blue-50 to-indigo-100'
-    } flex items-center justify-center p-4 relative overflow-hidden`}>
+    } flex items-center justify-center p-4 sm:p-6 md:p-8 relative overflow-hidden`}>
       
       {/* Theme Toggle Button */}
       <button
-        onClick={() => {
-          console.log('Theme toggle button clicked');
-          console.log('Current theme before toggle:', theme);
-          toggleTheme();
-        }}
-        className={`absolute top-6 right-6 p-3 rounded-full transition-all duration-300 z-50 cursor-pointer border-2 ${
+        onClick={toggleTheme}
+        className={`absolute top-4 right-4 sm:top-6 sm:right-6 p-3 rounded-full transition-all duration-300 z-50 cursor-pointer border-2 touch-target ${
           isDark 
             ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400 border-gray-600 hover:border-yellow-400' 
             : 'bg-white hover:bg-gray-100 text-gray-600 border-gray-200 hover:border-gray-400'
@@ -84,26 +80,26 @@ const Login = () => {
         isDark 
           ? 'bg-gray-800/90 border-gray-700/50' 
           : 'bg-white/90 border-white/20'
-      } backdrop-blur-xl rounded-3xl shadow-2xl border p-8 w-full max-w-md`}>
+      } backdrop-blur-xl rounded-2xl sm:rounded-3xl shadow-2xl border p-6 sm:p-8 w-full max-w-md mx-4 sm:mx-0`}>
         {/* Content */}
         <div className="relative z-10">
           {/* Header */}
-          <div className="text-center mb-8">
-            <div className="relative inline-block mb-6">
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-4 shadow-lg">
-                <LogIn className="h-8 w-8 text-white" />
+          <div className="text-center mb-6 sm:mb-8">
+            <div className="relative inline-block mb-4 sm:mb-6">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-lg">
+                <LogIn className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
               </div>
             </div>
-            <h1 className={`text-3xl font-bold ${
+            <h1 className={`text-2xl sm:text-3xl font-bold ${
               isDark ? 'text-white' : 'text-gray-800'
             } mb-2`}>
               Sign in with email
             </h1>
             <p className={`${
               isDark ? 'text-gray-400' : 'text-gray-600'
-            } text-sm leading-relaxed`}>
-              Access your personal cloud storage and<br />
-              manage your files securely. Welcome back!
+            } text-sm leading-relaxed px-2 sm:px-0`}>
+              Access your personal cloud storage and<br className="hidden sm:block" />
+              <span className="sm:hidden"> </span>manage your files securely. Welcome back!
             </p>
           </div>
 
@@ -148,11 +144,11 @@ const Login = () => {
                       message: 'Invalid email address'
                     }
                   })}
-                  className={`w-full pl-12 pr-4 py-4 ${
+                  className={`w-full pl-12 pr-4 py-3 sm:py-4 ${
                     isDark 
                       ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 hover:bg-gray-600/50' 
                       : 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 hover:bg-gray-100'
-                  } border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300`}
+                  } border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-base`}
                   placeholder="Email"
                 />
               </div>
@@ -178,11 +174,11 @@ const Login = () => {
                       message: 'Password must be at least 6 characters'
                     }
                   })}
-                  className={`w-full pl-12 pr-14 py-4 ${
+                  className={`w-full pl-12 pr-14 py-3 sm:py-4 ${
                     isDark 
                       ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 hover:bg-gray-600/50' 
                       : 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 hover:bg-gray-100'
-                  } border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300`}
+                  } border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-base`}
                   placeholder="Password"
                 />
                 <button
@@ -190,7 +186,7 @@ const Login = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   className={`absolute inset-y-0 right-0 pr-4 flex items-center ${
                     isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
-                  } rounded-r-xl transition-all duration-300`}
+                  } rounded-r-xl transition-all duration-300 touch-target`}
                 >
                   {showPassword ? (
                     <EyeOff className={`h-5 w-5 ${
@@ -230,7 +226,7 @@ const Login = () => {
                 isDark 
                   ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500' 
                   : 'bg-gray-900 hover:bg-gray-800 focus:ring-gray-500'
-              } text-white py-4 px-6 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 font-medium`}
+              } text-white py-3 sm:py-4 px-6 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 font-medium text-base touch-target`}
             >
               {isLoading ? (
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
@@ -240,7 +236,7 @@ const Login = () => {
             </button>
           </form>
 
-          <div className="mt-8 text-center">
+          <div className="mt-6 sm:mt-8 text-center">
             <p className={`${
               isDark ? 'text-gray-400' : 'text-gray-600'
             } text-sm`}>

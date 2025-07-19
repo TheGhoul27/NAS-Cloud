@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlmodel import Session, select, desc
-from app.models.database import get_session, User, UserStatus, UserRole, AdminCredentials
+from app.models.database import get_session, User, UserStatus, UserRole, AdminCredentials, StorageDrive
 from app.schemas.auth import UserListResponse, UserApprovalRequest, UserPasswordChange
-from app.services.storage import storage_service
+from app.schemas.storage import (
+    DriveCreate, DriveUpdate, DriveResponse, DriveUsageResponse, 
+    DriveListResponse, StorageOverviewResponse, UserMigrationRequest
+)
+from app.services.storage import storage_service, drive_management_service
 from app.auth.auth import verify_password, get_password_hash
 from typing import List, Union
 from datetime import datetime
@@ -169,7 +173,13 @@ async def approve_or_reject_user(
         
         # Create user storage folders when approved
         try:
-            storage_paths = storage_service.create_user_storage(user.storage_id)
+            storage_paths = storage_service.create_user_storage(
+                user.storage_id, 
+                drive_id=user.storage_drive_id
+            )
+            # Update user with storage drive ID if it was assigned during creation
+            if storage_paths.get("storage_drive_id") and not user.storage_drive_id:
+                user.storage_drive_id = storage_paths["storage_drive_id"]
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -336,4 +346,186 @@ async def change_user_password(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to change user password: {str(e)}"
+        )
+
+# Storage Management Endpoints
+
+@router.get("/storage/overview", response_model=StorageOverviewResponse)
+async def get_storage_overview(
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Get storage overview with drive statistics"""
+    try:
+        drives = storage_service.get_available_drives()
+        drive_usage = []
+        total_storage_gb = 0
+        used_storage_gb = 0
+        
+        for drive in drives:
+            if drive.id is not None:
+                usage = storage_service.get_drive_usage(drive.id)
+                if "error" not in usage:
+                    drive_usage.append(DriveUsageResponse(**usage))
+                    total_storage_gb += usage["total_bytes"] / (1024**3)  # Convert to GB
+                    used_storage_gb += usage["used_bytes"] / (1024**3)
+        
+        # Count total users
+        total_users = session.exec(select(User).where(User.status == UserStatus.APPROVED)).all()
+        
+        return StorageOverviewResponse(
+            total_drives=len(drives),
+            active_drives=len([d for d in drives if d.status.value == "active"]),
+            total_users=len(total_users),
+            total_storage_gb=round(total_storage_gb, 2),
+            used_storage_gb=round(used_storage_gb, 2),
+            drives=drive_usage
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get storage overview: {str(e)}"
+        )
+
+@router.get("/storage/drives", response_model=DriveListResponse)
+async def get_all_drives(
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Get all storage drives"""
+    try:
+        statement = select(StorageDrive).order_by(desc(StorageDrive.created_at))
+        drives = session.exec(statement).all()
+        
+        drive_responses = [DriveResponse.model_validate(drive) for drive in drives]
+        
+        return DriveListResponse(
+            drives=drive_responses,
+            total=len(drive_responses)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get drives: {str(e)}"
+        )
+
+@router.post("/storage/drives", response_model=DriveResponse)
+async def create_drive(
+    drive_data: DriveCreate,
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Create a new storage drive"""
+    try:
+        new_drive = drive_management_service.add_drive(
+            name=drive_data.name,
+            path=drive_data.path,
+            capacity_gb=drive_data.capacity_gb,
+            description=drive_data.description
+        )
+        return DriveResponse.model_validate(new_drive)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to create drive: {str(e)}"
+        )
+
+@router.put("/storage/drives/{drive_id}", response_model=DriveResponse)
+async def update_drive(
+    drive_id: int,
+    drive_data: DriveUpdate,
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Update a storage drive"""
+    try:
+        updated_drive = drive_management_service.update_drive(
+            drive_id=drive_id,
+            name=drive_data.name,
+            capacity_gb=drive_data.capacity_gb,
+            description=drive_data.description,
+            status=drive_data.status
+        )
+        if not updated_drive:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Drive not found"
+            )
+        return DriveResponse.model_validate(updated_drive)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to update drive: {str(e)}"
+        )
+
+@router.put("/storage/drives/{drive_id}/set-default")
+async def set_default_drive(
+    drive_id: int,
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Set a drive as the default drive for new users"""
+    try:
+        success = drive_management_service.set_default_drive(drive_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Drive not found or not active"
+            )
+        return {"message": f"Drive {drive_id} set as default"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to set default drive: {str(e)}"
+        )
+
+@router.delete("/storage/drives/{drive_id}")
+async def remove_drive(
+    drive_id: int,
+    force: bool = False,
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Remove a storage drive (use force=true if drive has users)"""
+    try:
+        success = drive_management_service.remove_drive(drive_id, force=force)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Drive not found"
+            )
+        return {"message": f"Drive {drive_id} removed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to remove drive: {str(e)}"
+        )
+
+@router.get("/storage/drives/{drive_id}/usage", response_model=DriveUsageResponse)
+async def get_drive_usage(
+    drive_id: int,
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Get usage statistics for a specific drive"""
+    try:
+        usage = storage_service.get_drive_usage(drive_id)
+        if "error" in usage:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=usage["error"]
+            )
+        return DriveUsageResponse(**usage)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get drive usage: {str(e)}"
         )

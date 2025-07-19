@@ -16,7 +16,14 @@ import {
   Crown,
   LogOut,
   Settings,
-  Key
+  Key,
+  HardDrive,
+  Plus,
+  Edit,
+  Trash2,
+  Database,
+  Server,
+  AlertTriangle
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -28,6 +35,20 @@ const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pending');
   const [actionLoading, setActionLoading] = useState(null);
+  
+  // Storage management state
+  const [storageOverview, setStorageOverview] = useState(null);
+  const [drives, setDrives] = useState([]);
+  const [storageLoading, setStorageLoading] = useState(false);
+  const [driveModal, setDriveModal] = useState({ show: false, drive: null, mode: 'create' });
+  const [driveFormData, setDriveFormData] = useState({
+    name: '',
+    path: '',
+    capacity_gb: '',
+    description: ''
+  });
+  
+  // Password management state
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -267,6 +288,142 @@ const AdminPanel = () => {
     );
   };
 
+  // Storage Management Functions
+  const fetchStorageOverview = async () => {
+    setStorageLoading(true);
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/overview`, {
+        headers: getAuthHeaders()
+      });
+      setStorageOverview(response.data);
+    } catch (error) {
+      console.error('Error fetching storage overview:', error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem('admin_credentials');
+        navigate('/admin/login');
+      }
+    } finally {
+      setStorageLoading(false);
+    }
+  };
+
+  const fetchDrives = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/drives`, {
+        headers: getAuthHeaders()
+      });
+      setDrives(response.data.drives);
+    } catch (error) {
+      console.error('Error fetching drives:', error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem('admin_credentials');
+        navigate('/admin/login');
+      }
+    }
+  };
+
+  const handleDriveSubmit = async (e) => {
+    e.preventDefault();
+    setStorageLoading(true);
+    
+    try {
+      const url = driveModal.mode === 'create'
+        ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/drives`
+        : `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/drives/${driveModal.drive.id}`;
+      
+      const method = driveModal.mode === 'create' ? 'post' : 'put';
+      
+      const data = {
+        name: driveFormData.name,
+        path: driveFormData.path,
+        capacity_gb: driveFormData.capacity_gb ? parseFloat(driveFormData.capacity_gb) : null,
+        description: driveFormData.description || null
+      };
+
+      await axios[method](url, data, {
+        headers: getAuthHeaders()
+      });
+
+      await fetchDrives();
+      await fetchStorageOverview();
+      setDriveModal({ show: false, drive: null, mode: 'create' });
+      setDriveFormData({ name: '', path: '', capacity_gb: '', description: '' });
+    } catch (error) {
+      console.error('Error saving drive:', error);
+      alert(error.response?.data?.detail || 'Failed to save drive');
+    } finally {
+      setStorageLoading(false);
+    }
+  };
+
+  const handleSetDefaultDrive = async (driveId) => {
+    try {
+      await axios.put(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/drives/${driveId}/set-default`, {}, {
+        headers: getAuthHeaders()
+      });
+      await fetchDrives();
+      alert('Default drive updated successfully');
+    } catch (error) {
+      console.error('Error setting default drive:', error);
+      alert(error.response?.data?.detail || 'Failed to set default drive');
+    }
+  };
+
+  const handleDeleteDrive = async (driveId, force = false) => {
+    if (!confirm(`Are you sure you want to ${force ? 'force ' : ''}delete this drive?`)) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/drives/${driveId}?force=${force}`, {
+        headers: getAuthHeaders()
+      });
+      await fetchDrives();
+      await fetchStorageOverview();
+      alert('Drive deleted successfully');
+    } catch (error) {
+      console.error('Error deleting drive:', error);
+      if (error.response?.data?.detail?.includes('users')) {
+        if (confirm('This drive has users. Force delete anyway?')) {
+          handleDeleteDrive(driveId, true);
+        }
+      } else {
+        alert(error.response?.data?.detail || 'Failed to delete drive');
+      }
+    }
+  };
+
+  const openDriveModal = (mode, drive = null) => {
+    setDriveModal({ show: true, mode, drive });
+    if (mode === 'edit' && drive) {
+      setDriveFormData({
+        name: drive.name,
+        path: drive.path,
+        capacity_gb: drive.capacity_gb || '',
+        description: drive.description || ''
+      });
+    } else {
+      setDriveFormData({ name: '', path: '', capacity_gb: '', description: '' });
+    }
+  };
+
+  const formatBytes = (bytes, decimals = 2) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  };
+
+  // Fetch storage data when storage tab is selected
+  useEffect(() => {
+    if (activeTab === 'storage') {
+      fetchStorageOverview();
+      fetchDrives();
+    }
+  }, [activeTab]);
+
   if (loading) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'} flex items-center justify-center`}>
@@ -332,6 +489,19 @@ const AdminPanel = () => {
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               All Users ({users.length})
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('storage')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'storage'
+                ? `${isDark ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'}`
+                : `${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white text-gray-600 hover:bg-gray-50'}`
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <HardDrive className="h-4 w-4" />
+              Storage
             </div>
           </button>
           <button
@@ -521,6 +691,155 @@ const AdminPanel = () => {
                 ))}
               </div>
             </div>
+          ) : activeTab === 'storage' ? (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} flex items-center gap-2`}>
+                  <HardDrive className="h-5 w-5" />
+                  Storage Management
+                </h2>
+                <button
+                  onClick={() => openDriveModal('create')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isDark 
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                      : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
+                  }`}
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Drive
+                </button>
+              </div>
+
+              {/* Storage Overview */}
+              {storageOverview && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className={`${isDark ? 'bg-gray-750' : 'bg-blue-50'} rounded-lg p-4 border ${isDark ? 'border-gray-700' : 'border-blue-200'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Server className="h-5 w-5 text-blue-600" />
+                      <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Total Drives</span>
+                    </div>
+                    <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {storageOverview.total_drives}
+                    </div>
+                  </div>
+
+                  <div className={`${isDark ? 'bg-gray-750' : 'bg-green-50'} rounded-lg p-4 border ${isDark ? 'border-gray-700' : 'border-green-200'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Active Drives</span>
+                    </div>
+                    <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {storageOverview.active_drives}
+                    </div>
+                  </div>
+
+                  <div className={`${isDark ? 'bg-gray-750' : 'bg-purple-50'} rounded-lg p-4 border ${isDark ? 'border-gray-700' : 'border-purple-200'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Users className="h-5 w-5 text-purple-600" />
+                      <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Total Users</span>
+                    </div>
+                    <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {storageOverview.total_users}
+                    </div>
+                  </div>
+
+                  <div className={`${isDark ? 'bg-gray-750' : 'bg-yellow-50'} rounded-lg p-4 border ${isDark ? 'border-gray-700' : 'border-yellow-200'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Database className="h-5 w-5 text-yellow-600" />
+                      <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Storage Used</span>
+                    </div>
+                    <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {storageOverview.used_storage_gb.toFixed(1)} GB
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Drives List */}
+              <div className="space-y-4">
+                {drives.map((drive) => (
+                  <div
+                    key={drive.id}
+                    className={`border ${isDark ? 'border-gray-700 bg-gray-750' : 'border-gray-200 bg-gray-50'} rounded-lg p-4`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className={`text-lg font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {drive.name}
+                          </h3>
+                          {drive.is_default && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                              <CheckCircle className="h-3 w-3" />
+                              Default
+                            </span>
+                          )}
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                            drive.status === 'active' 
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                          }`}>
+                            {drive.status === 'active' ? <CheckCircle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                            {drive.status.charAt(0).toUpperCase() + drive.status.slice(1)}
+                          </span>
+                        </div>
+                        
+                        <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} space-y-1`}>
+                          <div><strong>Path:</strong> {drive.path}</div>
+                          {drive.description && <div><strong>Description:</strong> {drive.description}</div>}
+                          {drive.capacity_gb && <div><strong>Capacity:</strong> {drive.capacity_gb} GB</div>}
+                          <div><strong>Created:</strong> {formatDate(drive.created_at)}</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {!drive.is_default && drive.status === 'active' && (
+                          <button
+                            onClick={() => handleSetDefaultDrive(drive.id)}
+                            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                              isDark 
+                                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                                : 'bg-green-100 hover:bg-green-200 text-green-700'
+                            }`}
+                          >
+                            Set Default
+                          </button>
+                        )}
+                        <button
+                          onClick={() => openDriveModal('edit', drive)}
+                          className={`p-2 rounded transition-colors ${
+                            isDark 
+                              ? 'text-gray-400 hover:text-blue-400 hover:bg-gray-700' 
+                              : 'text-gray-600 hover:text-blue-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteDrive(drive.id)}
+                          className={`p-2 rounded transition-colors ${
+                            isDark 
+                              ? 'text-gray-400 hover:text-red-400 hover:bg-gray-700' 
+                              : 'text-gray-600 hover:text-red-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {loading && (
+                <div className="text-center py-8">
+                  <div className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Loading storage information...
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="p-6">
               <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4 flex items-center gap-2`}>
@@ -678,6 +997,120 @@ const AdminPanel = () => {
                   onClick={() => {
                     setUserPasswordModal({ show: false, user: null });
                     setUserPasswordData({ newPassword: '', confirmPassword: '' });
+                  }}
+                  className={`flex-1 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} px-4 py-2 rounded-lg font-medium transition-colors`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Drive Modal */}
+      {driveModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full mx-4`}>
+            <form onSubmit={handleDriveSubmit}>
+              <div className="p-6">
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
+                  {driveModal.mode === 'create' ? 'Add New Drive' : 'Edit Drive'}
+                </h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                      Drive Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={driveFormData.name}
+                      onChange={(e) => setDriveFormData(prev => ({ ...prev, name: e.target.value }))}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        isDark 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                      placeholder="e.g., Main Storage, Drive 1"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                      Drive Path *
+                    </label>
+                    <input
+                      type="text"
+                      value={driveFormData.path}
+                      onChange={(e) => setDriveFormData(prev => ({ ...prev, path: e.target.value }))}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        isDark 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                      placeholder="e.g., /mnt/drive1, E:\Storage"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                      Capacity (GB)
+                    </label>
+                    <input
+                      type="number"
+                      value={driveFormData.capacity_gb}
+                      onChange={(e) => setDriveFormData(prev => ({ ...prev, capacity_gb: e.target.value }))}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        isDark 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                      placeholder="e.g., 1000"
+                      min="0"
+                      step="0.1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                      Description
+                    </label>
+                    <textarea
+                      value={driveFormData.description}
+                      onChange={(e) => setDriveFormData(prev => ({ ...prev, description: e.target.value }))}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        isDark 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                      placeholder="Optional description"
+                      rows="3"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 p-6 pt-0">
+                <button
+                  type="submit"
+                  disabled={storageLoading}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  {storageLoading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <HardDrive className="h-4 w-4" />
+                  )}
+                  {driveModal.mode === 'create' ? 'Add Drive' : 'Update Drive'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDriveModal({ show: false, drive: null, mode: 'create' });
+                    setDriveFormData({ name: '', path: '', capacity_gb: '', description: '' });
                   }}
                   className={`flex-1 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} px-4 py-2 rounded-lg font-medium transition-colors`}
                 >
