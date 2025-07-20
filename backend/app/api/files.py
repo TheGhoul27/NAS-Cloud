@@ -11,8 +11,60 @@ from pathlib import Path
 import mimetypes
 from datetime import datetime, timedelta
 import json
+from PIL import Image, ExifTags
+from PIL.ExifTags import TAGS
 
 router = APIRouter(prefix="/files", tags=["files"])
+
+def extract_photo_metadata(file_path):
+    """Extract metadata from photo files including EXIF data"""
+    try:
+        # Default metadata
+        metadata = {
+            "date_taken": None,
+            "camera_make": None,
+            "camera_model": None,
+            "location": None
+        }
+        
+        # Check if it's an image file
+        try:
+            with Image.open(file_path) as image:
+                # Extract EXIF data
+                exif_data = image.getexif()
+                
+                if exif_data:
+                    # Get date taken
+                    for tag_id, value in exif_data.items():
+                        tag = TAGS.get(tag_id, tag_id)
+                        
+                        if tag == "DateTime":
+                            try:
+                                # Parse EXIF date format: "YYYY:MM:DD HH:MM:SS"
+                                date_taken = datetime.strptime(str(value), "%Y:%m:%d %H:%M:%S")
+                                metadata["date_taken"] = date_taken.isoformat()
+                            except (ValueError, TypeError):
+                                pass
+                        elif tag == "Make":
+                            metadata["camera_make"] = str(value).strip()
+                        elif tag == "Model":
+                            metadata["camera_model"] = str(value).strip()
+                        elif tag == "GPSInfo":
+                            # GPS data extraction could be added here
+                            pass
+                            
+        except Exception:
+            # Not an image file or can't read EXIF data
+            pass
+            
+        return metadata
+    except Exception:
+        return {
+            "date_taken": None,
+            "camera_make": None,
+            "camera_model": None,
+            "location": None
+        }
 
 @router.get("/storage-info")
 async def get_storage_info(
@@ -101,6 +153,19 @@ async def list_files(
                     "size": os.path.getsize(item_path),
                     "mimeType": mimetypes.guess_type(item_path)[0] or "application/octet-stream"
                 })
+                
+                # For photos context, extract additional metadata from image files
+                if context == "photos":
+                    mime_type = item_info["mimeType"]
+                    if mime_type and mime_type.startswith('image/'):
+                        photo_metadata = extract_photo_metadata(item_path)
+                        item_info.update(photo_metadata)
+                        
+                        # Use date_taken as the primary date if available, otherwise use modified date
+                        if photo_metadata["date_taken"]:
+                            item_info["date_taken"] = photo_metadata["date_taken"]
+                        else:
+                            item_info["date_taken"] = item_info["modified"]
             
             items.append(item_info)
         
@@ -525,6 +590,20 @@ async def get_recent_files(
                     "modified": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
                     "modified_timestamp": os.path.getmtime(file_path)
                 }
+                
+                # For photos context, extract additional metadata from image files
+                if context == "photos":
+                    mime_type = file_info["mimeType"]
+                    if mime_type and mime_type.startswith('image/'):
+                        photo_metadata = extract_photo_metadata(file_path)
+                        file_info.update(photo_metadata)
+                        
+                        # Use date_taken as the primary date if available, otherwise use modified date
+                        if photo_metadata["date_taken"]:
+                            file_info["date_taken"] = photo_metadata["date_taken"]
+                        else:
+                            file_info["date_taken"] = file_info["modified"]
+                
                 recent_files.append(file_info)
         
         # Sort by modification time (most recent first) and limit results
@@ -716,10 +795,18 @@ def _get_size(path):
 
 @router.get("/trash")
 async def list_trash(
+    context: str = Query("drive", description="Storage context: 'drive' or 'photos'"),
     current_user: User = Depends(get_current_user),
     storage_paths: dict = Depends(get_current_user_storage)
 ):
-    """List items in trash"""
+    """List items in trash for a specific context"""
+    
+    # Validate context
+    if context not in ["drive", "photos"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Context must be either 'drive' or 'photos'"
+        )
     
     trash_dir = os.path.join(storage_paths['user_path'], '.trash')
     
@@ -743,6 +830,10 @@ async def list_trash(
                 try:
                     with open(metadata_file, 'r') as f:
                         metadata = json.load(f)
+                    
+                    # Skip items that don't match the requested context
+                    if metadata.get('context') != context:
+                        continue
                     
                     # Calculate days in trash
                     deleted_at = datetime.fromisoformat(metadata['deleted_at'])
@@ -895,10 +986,18 @@ async def permanently_delete(
 
 @router.delete("/trash/empty")
 async def empty_trash(
+    context: str = Query("drive", description="Storage context: 'drive' or 'photos'"),
     current_user: User = Depends(get_current_user),
     storage_paths: dict = Depends(get_current_user_storage)
 ):
-    """Empty the entire trash (permanently delete all items)"""
+    """Empty trash for a specific context (permanently delete all items)"""
+    
+    # Validate context
+    if context not in ["drive", "photos"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Context must be either 'drive' or 'photos'"
+        )
     
     trash_dir = os.path.join(storage_paths['user_path'], '.trash')
     
@@ -912,18 +1011,36 @@ async def empty_trash(
     
     try:
         for item in os.listdir(trash_dir):
+            if item.endswith('.meta'):
+                continue
+                
             item_path = os.path.join(trash_dir, item)
+            metadata_file = f"{item_path}.meta"
             
-            if os.path.isfile(item_path):
-                os.remove(item_path)
-                if not item.endswith('.meta'):
-                    deleted_count += 1
-            elif os.path.isdir(item_path):
-                shutil.rmtree(item_path)
-                deleted_count += 1
+            # Check if this item belongs to the specified context
+            if os.path.exists(metadata_file):
+                try:
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                    
+                    # Only delete items from the specified context
+                    if metadata.get('context') == context:
+                        # Delete the actual file/folder
+                        if os.path.isfile(item_path):
+                            os.remove(item_path)
+                        elif os.path.isdir(item_path):
+                            shutil.rmtree(item_path)
+                        
+                        # Delete the metadata file
+                        os.remove(metadata_file)
+                        deleted_count += 1
+                        
+                except (json.JSONDecodeError, KeyError):
+                    # Skip items with invalid metadata
+                    continue
         
         return {
-            "message": f"Trash emptied successfully. {deleted_count} items permanently deleted.",
+            "message": f"Trash emptied successfully for {context}. {deleted_count} items permanently deleted.",
             "deleted_count": deleted_count
         }
         

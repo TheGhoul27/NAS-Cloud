@@ -7,7 +7,8 @@ import Login from './components/Login';
 import Register from './components/Register';
 import Drive from './components/Drive';
 import Photos from './components/Photos';
-import Trash from './components/Trash';
+import DriveTrash from './components/DriveTrash';
+import PhotosTrash from './components/PhotosTrash';
 import AdminLogin from './components/AdminLogin';
 import AdminPanel from './components/AdminPanel';
 
@@ -25,7 +26,7 @@ function App() {
           <Route path="/drive/register" element={<Register />} />
           <Route path="/drive/trash" element={
             <ProtectedRoute>
-              <Trash />
+              <DriveTrash />
             </ProtectedRoute>
           } />
           <Route path="/drive" element={
@@ -39,7 +40,7 @@ function App() {
           <Route path="/photos/register" element={<Register />} />
           <Route path="/photos/trash" element={
             <ProtectedRoute>
-              <Trash />
+              <PhotosTrash />
             </ProtectedRoute>
           } />
           <Route path="/photos" element={

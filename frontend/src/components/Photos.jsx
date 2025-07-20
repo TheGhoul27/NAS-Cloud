@@ -333,7 +333,7 @@ const Photos = () => {
 
   const handleDownload = async (file) => {
     try {
-      const response = await filesAPI.downloadFile(`photos/${file.name}`);
+      const response = await filesAPI.downloadFile(file.name, 'photos');
       
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
@@ -372,7 +372,54 @@ const Photos = () => {
     });
   };
 
+  const formatDateSection = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = now - date;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      return 'Today';
+    } else if (diffDays === 1) {
+      return 'Yesterday';
+    } else if (diffDays <= 7) {
+      return 'This Week';
+    } else if (diffDays <= 30) {
+      return 'This Month';
+    } else if (diffDays <= 365) {
+      return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    } else {
+      return date.getFullYear().toString();
+    }
+  };
+
+  const groupPhotosByDate = (photos) => {
+    if (!photos || photos.length === 0) return {};
+    
+    // Sort photos by date_taken (or modified if no date_taken) in descending order
+    const sortedPhotos = [...photos].sort((a, b) => {
+      const dateA = new Date(a.date_taken || a.modified);
+      const dateB = new Date(b.date_taken || b.modified);
+      return dateB - dateA;
+    });
+    
+    // Group by date sections
+    const grouped = {};
+    sortedPhotos.forEach(photo => {
+      const photoDate = photo.date_taken || photo.modified;
+      const section = formatDateSection(photoDate);
+      
+      if (!grouped[section]) {
+        grouped[section] = [];
+      }
+      grouped[section].push(photo);
+    });
+    
+    return grouped;
+  };
+
   const displayMedia = searchActive ? searchResults : media;
+  const groupedPhotos = groupPhotosByDate(displayMedia);
 
   return (
     <div className={`min-h-screen transition-colors duration-200 ${
@@ -637,159 +684,194 @@ const Photos = () => {
                       </p>
                     </div>
                   ) : (
-                    /* Media grid/list */
-                    <div className={
-                      viewMode === 'grid' 
-                        ? 'responsive-grid'
-                        : 'space-y-2'
-                    }>
-                      {displayMedia.map((item, index) => (
-                        <div
-                          key={index}
-                          className={`group relative transition-all duration-200 ${
-                            viewMode === 'grid'
-                              ? `${isDark ? 'bg-gray-750 hover:bg-gray-700 border-gray-600' : 'bg-gray-50 hover:bg-gray-100 border-gray-200'} border rounded-lg overflow-hidden cursor-pointer`
-                              : `${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} flex items-center p-3 rounded-lg cursor-pointer`
-                          }`}
-                          onClick={() => handlePreview(item)}
-                        >
-                          {viewMode === 'grid' ? (
-                            /* Grid view */
-                            <>
-                              {/* Media thumbnail */}
-                              <div className="aspect-square relative">
-                                {getFileType(item.mimeType, item.name) === 'image' ? (
-                                  <img
-                                    src={filesAPI.getViewUrl(item.name, 'photos')}
-                                    alt={item.name}
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                                    <FileVideo className="h-8 w-8 text-gray-400" />
-                                  </div>
-                                )}
-                                
-                                {/* Overlay on hover */}
-                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
-                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handlePreview(item);
-                                      }}
-                                      className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all"
-                                    >
-                                      <Eye className="h-4 w-4 text-gray-700" />
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDownload(item);
-                                      }}
-                                      className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all"
-                                    >
-                                      <Download className="h-4 w-4 text-gray-700" />
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteFile(item);
-                                      }}
-                                      className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all"
-                                    >
-                                      <Trash2 className="h-4 w-4 text-red-600" />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
+                    /* Date-grouped Media */
+                    <div className="space-y-8">
+                      {Object.entries(groupedPhotos).map(([dateSection, photos]) => (
+                        <div key={dateSection} className="space-y-4">
+                          {/* Date Section Header */}
+                          <div className="flex items-center space-x-4">
+                            <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {dateSection}
+                            </h2>
+                            <div className={`flex-1 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+                            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {photos.length} {photos.length === 1 ? 'item' : 'items'}
+                            </span>
+                          </div>
 
-                              {/* File info */}
-                              <div className="p-3">
-                                <h3 className={`text-sm font-medium truncate ${
-                                  isDark ? 'text-gray-200' : 'text-gray-800'
-                                }`} title={item.name}>
-                                  {item.name}
-                                </h3>
-                                <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                  {formatFileSize(item.size)}
-                                </p>
-                              </div>
-                            </>
-                          ) : (
-                            /* List view */
-                            <>
-                              <div className="flex items-center flex-1 min-w-0">
-                                <div className="flex-shrink-0 mr-3">
-                                  {getFileType(item.mimeType, item.name) === 'image' ? (
-                                    <div className="w-12 h-12 rounded overflow-hidden">
-                                      <img
-                                        src={filesAPI.getViewUrl(item.name, 'photos')}
-                                        alt={item.name}
-                                        className="w-full h-full object-cover"
-                                        loading="lazy"
-                                      />
+                          {/* Photos Grid/List for this date section */}
+                          <div className={
+                            viewMode === 'grid' 
+                              ? 'responsive-grid'
+                              : 'space-y-2'
+                          }>
+                            {photos.map((item, index) => (
+                              <div
+                                key={`${dateSection}-${index}`}
+                                className={`group relative transition-all duration-200 ${
+                                  viewMode === 'grid'
+                                    ? `${isDark ? 'bg-gray-750 hover:bg-gray-700 border-gray-600' : 'bg-gray-50 hover:bg-gray-100 border-gray-200'} border rounded-lg overflow-hidden cursor-pointer`
+                                    : `${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} flex items-center p-3 rounded-lg cursor-pointer`
+                                }`}
+                                onClick={() => handlePreview(item)}
+                              >
+                                {viewMode === 'grid' ? (
+                                  /* Grid view */
+                                  <>
+                                    {/* Media thumbnail */}
+                                    <div className="aspect-square relative">
+                                      {getFileType(item.mimeType, item.name) === 'image' ? (
+                                        <img
+                                          src={filesAPI.getViewUrl(item.name, 'photos')}
+                                          alt={item.name}
+                                          className="w-full h-full object-cover"
+                                          loading="lazy"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                                          <FileVideo className="h-8 w-8 text-gray-400" />
+                                        </div>
+                                      )}
+                                      
+                                      {/* Overlay on hover */}
+                                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handlePreview(item);
+                                            }}
+                                            className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all"
+                                          >
+                                            <Eye className="h-4 w-4 text-gray-700" />
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDownload(item);
+                                            }}
+                                            className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all"
+                                          >
+                                            <Download className="h-4 w-4 text-gray-700" />
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDeleteFile(item);
+                                            }}
+                                            className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all"
+                                          >
+                                            <Trash2 className="h-4 w-4 text-red-600" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Date taken indicator */}
+                                      {item.date_taken && item.date_taken !== item.modified && (
+                                        <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                                          📷
+                                        </div>
+                                      )}
                                     </div>
-                                  ) : (
-                                    <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
-                                      <FileVideo className="h-6 w-6 text-gray-400" />
+
+                                    {/* File info */}
+                                    <div className="p-3">
+                                      <h3 className={`text-sm font-medium truncate ${
+                                        isDark ? 'text-gray-200' : 'text-gray-800'
+                                      }`} title={item.name}>
+                                        {item.name}
+                                      </h3>
+                                      <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        {formatFileSize(item.size)}
+                                        {item.camera_make && item.camera_model && (
+                                          <span className="block">
+                                            {item.camera_make} {item.camera_model}
+                                          </span>
+                                        )}
+                                      </p>
                                     </div>
-                                  )}
-                                </div>
-                                
-                                <div className="flex-1 min-w-0">
-                                  <h3 className={`text-sm font-medium truncate ${
-                                    isDark ? 'text-gray-200' : 'text-gray-800'
-                                  }`}>
-                                    {item.name}
-                                  </h3>
-                                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    {formatFileSize(item.size)} • {formatDate(item.modified)}
-                                  </p>
-                                </div>
+                                  </>
+                                ) : (
+                                  /* List view */
+                                  <>
+                                    <div className="flex items-center flex-1 min-w-0">
+                                      <div className="flex-shrink-0 mr-3">
+                                        {getFileType(item.mimeType, item.name) === 'image' ? (
+                                          <div className="w-12 h-12 rounded overflow-hidden">
+                                            <img
+                                              src={filesAPI.getViewUrl(item.name, 'photos')}
+                                              alt={item.name}
+                                              className="w-full h-full object-cover"
+                                              loading="lazy"
+                                            />
+                                          </div>
+                                        ) : (
+                                          <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
+                                            <FileVideo className="h-6 w-6 text-gray-400" />
+                                          </div>
+                                        )}
+                                      </div>
+                                      
+                                      <div className="flex-1 min-w-0">
+                                        <h3 className={`text-sm font-medium truncate ${
+                                          isDark ? 'text-gray-200' : 'text-gray-800'
+                                        }`}>
+                                          {item.name}
+                                        </h3>
+                                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                          {formatFileSize(item.size)} • {formatDate(item.date_taken || item.modified)}
+                                          {item.camera_make && item.camera_model && (
+                                            <span className="block">
+                                              📷 {item.camera_make} {item.camera_model}
+                                            </span>
+                                          )}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Action buttons */}
+                                    <div className="flex items-center space-x-1 ml-2">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handlePreview(item);
+                                        }}
+                                        className={`p-2 rounded transition-colors touch-target ${
+                                          isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                                        }`}
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                      </button>
+                                      
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDownload(item);
+                                        }}
+                                        className={`p-2 rounded transition-colors touch-target ${
+                                          isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                                        }`}
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </button>
+                                      
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteFile(item);
+                                        }}
+                                        className={`p-2 rounded transition-colors touch-target ${
+                                          isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                                        }`}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
                               </div>
-                              
-                              {/* Action buttons */}
-                              <div className="flex items-center space-x-1 ml-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handlePreview(item);
-                                  }}
-                                  className={`p-2 rounded transition-colors touch-target ${
-                                    isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
-                                  }`}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </button>
-                                
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDownload(item);
-                                  }}
-                                  className={`p-2 rounded transition-colors touch-target ${
-                                    isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
-                                  }`}
-                                >
-                                  <Download className="h-4 w-4" />
-                                </button>
-                                
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteFile(item);
-                                  }}
-                                  className={`p-2 rounded transition-colors touch-target ${
-                                    isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
-                                  }`}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </>
-                          )}
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>

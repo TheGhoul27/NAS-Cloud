@@ -90,10 +90,10 @@ export const filesAPI = {
   getPhotos: (path = '') => api.get('/files/list', { params: { path, context: 'photos' } }),
   
   // Trash operations
-  listTrash: () => api.get('/files/trash'),
+  listTrash: (context = 'drive') => api.get('/files/trash', { params: { context } }),
   restoreFromTrash: (trashId) => api.post(`/files/trash/${trashId}/restore`),
   permanentlyDelete: (trashId) => api.delete(`/files/trash/${trashId}/permanent`),
-  emptyTrash: () => api.delete('/files/trash/empty'),
+  emptyTrash: (context = 'drive') => api.delete('/files/trash/empty', { params: { context } }),
   cleanupTrash: () => api.post('/files/trash/cleanup'),
   
   // Create authenticated URLs for direct use in src attributes
