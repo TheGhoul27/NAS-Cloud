@@ -14,6 +14,7 @@ backend/.pytest_cache/
 backend/nas_storage/
 *.db
 *.sqlite3
+backend/venv/
 
 # Environment files
 .env
@@ -48,3 +49,6 @@ coverage/
 # Temporary folders
 tmp/
 temp/
+
+build/
+dist/
