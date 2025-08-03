@@ -8,7 +8,8 @@ A modern, self-hosted file storage and photo management system built with Python
 - **Unified Authentication**: Single API handles auth for both applications
 - **Modern UI**: Clean, responsive design with Tailwind CSS
 - **Secure**: JWT-based authentication with password hashing
-- **Extensible**: Modular architecture ready for additional features
+- **Development Ready**: Hot reloading and easy setup
+- **Flexible Deployment**: Serve frontend separately or from backend
 
 ## Project Structure
 
@@ -31,7 +32,8 @@ NAS-Cloud/
 │   │   ├── services/       # API services
 │   │   └── App.jsx        # Main app component
 │   └── package.json       # Node dependencies
-└── docker-compose.yml     # Development services
+├── setup-dev.bat           # Windows setup script
+└── setup-dev.sh            # Linux/macOS setup script
 ```
 
 ## Quick Start
@@ -40,7 +42,6 @@ NAS-Cloud/
 
 - Python 3.9+
 - Node.js 18+
-- Docker & Docker Compose
 
 ### 1. Clone the Repository
 
@@ -49,13 +50,7 @@ git clone <repository-url>
 cd NAS-Cloud
 ```
 
-### 2. Start Database Services
-
-```bash
-docker-compose up -d
-```
-
-### 3. Start Backend (Terminal 1)
+### 2. Setup Backend
 
 **Windows:**
 ```cmd
@@ -72,10 +67,9 @@ chmod +x start-backend.sh
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 4. Start Frontend (Terminal 2)
+### 3. Setup Frontend
 
 **Windows:**
 ```cmd
@@ -92,14 +86,49 @@ chmod +x start-frontend.sh
 ```bash
 cd frontend
 npm install
+```
+
+### 4. Start Development Servers
+
+**Option 1: Separate Frontend and Backend (Recommended for development)**
+
+Terminal 1 (Backend):
+```bash
+cd backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Terminal 2 (Frontend):
+```bash
+cd frontend
 npm run dev
+```
+
+**Option 2: Backend serves frontend (Production-like)**
+
+Build frontend first:
+```bash
+cd frontend
+npm run build
+```
+
+Then start backend:
+```bash
+cd backend
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ## Access the Applications
 
-- **Drive App**: http://localhost:3000/drive
-- **Photos App**: http://localhost:3000/photos
-- **API Documentation**: http://localhost:8000/docs
+**With Separate Servers (Development):**
+- **Drive App**: <http://localhost:3000/drive>
+- **Photos App**: <http://localhost:3000/photos>
+- **API Documentation**: <http://localhost:8000/docs>
+
+**With Backend Serving Frontend:**
+- **Main Interface**: <http://localhost:8000>
+- **API Documentation**: <http://localhost:8000/docs>
+- **Health Check**: <http://localhost:8000/health>
 
 ## Authentication Flow
 
