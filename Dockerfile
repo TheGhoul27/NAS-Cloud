@@ -13,6 +13,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     DATABASE_URL=sqlite:////data/nas_cloud.db \
     NAS_STORAGE_PATH=/data/nas_storage \
+    FRONTEND_DIST_ROOT=/app/frontend \
     CORS_ALLOW_ALL=true
 
 WORKDIR /app
