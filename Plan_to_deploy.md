@@ -1,286 +1,182 @@
-# Plan to Deploy NAS-Cloud (Single Image + Cross-Platform + Auto-Update)
+# NAS-Cloud Deployment Plan (Single Docker Image for Pi + Standalone Executable Option)
 
-## 1) Objectives
+## 1. Goal
 
-- Run NAS-Cloud with **no host dependency installs** (except Docker, or executable runtime).
-- Use **one deployable artifact** for many device types (Pi, Linux server, Windows, macOS).
-- Keep user data safe across restarts/rebuilds.
-- Support controlled updates with rollback.
+Deploy NAS-Cloud as one artifact across multiple devices, with persistent data and reliable updates.
 
----
+This repository now includes:
 
-## 2) Recommended Deployment Models
-
-## Model A (Primary): Single Docker Image (multi-arch)
-Best for Raspberry Pi and servers.
-
-- One container image includes:
-  - Python backend
-  - Built frontend assets (Drive + Photos)
-- Runtime data mounted from host volume.
-- Image published as multi-architecture manifest:
-  - `linux/amd64`
-  - `linux/arm64`
-  - `linux/arm/v7` (optional, for older Pi)
-
-## Model B (Optional): Standalone Executable App
-Best when Docker is unavailable or undesired.
-
-- Package backend + static frontend into native app bundles.
-- Installers per OS.
-- Auto-update via app updater channel (or platform package manager).
+- `Dockerfile` (single image: backend + built Drive + built Photos)
+- `docker-compose.pi.yml` (Pi runtime + optional Watchtower autoupdate)
+- `deploy/pi/deploy.sh` (first deploy)
+- `deploy/pi/update.sh` (manual update)
 
 ---
 
-## 3) Data Persistence Design (Critical)
+## 2. Docker Path (Primary)
 
-Use a dedicated data path **outside image**:
+### 2.1 What the image contains
 
-- `/data/nas_cloud.db` (SQLite DB)
-- `/data/nas_storage/` (files/uploads)
-- `/data/logs/` (optional)
+- Python FastAPI backend
+- Drive frontend build (`dist-drive`)
+- Photos frontend build (`dist-photos`)
 
-Rules:
-- Never store persistent data in image layer.
-- Upgrades replace container/app binary, not `/data`.
-- Back up `/data` regularly.
+Runtime entry points:
 
----
+- Drive: `http://<host>:8000/drive`
+- Photos: `http://<host>:8000/photos`
+- API docs: `http://<host>:8000/docs`
+- Health: `http://<host>:8000/health`
 
-## 4) Single-Image Docker Strategy
+### 2.2 Persistent data (critical)
 
-## 4.1 Architecture Choice
+All persistent files live under `/data` (mounted from host):
 
-Use a **single runtime process** where possible:
-- FastAPI serves API + static frontend bundles.
+- `/data/nas_cloud.db`
+- `/data/nas_storage/`
 
-If current architecture requires Node runtime at runtime, use a process supervisor (temporary).
-Long-term, prefer backend static serving to simplify operations.
+In `docker-compose.pi.yml`, this is mapped as:
 
-## 4.2 Build Pipeline
+```yaml
+volumes:
+  - ./data:/data
+```
 
-1. Build frontend artifacts (`dist-drive`, `dist-photos`).
-2. Copy artifacts into backend image.
-3. Install backend dependencies.
-4. Set env defaults:
-   - `DATABASE_URL=sqlite:////data/nas_cloud.db`
-   - `NAS_STORAGE_PATH=/data/nas_storage`
-5. Expose backend port (e.g., `8000`).
+This means container/image replacement does not delete user data.
 
-## 4.3 Multi-Arch Build & Publish
+### 2.3 Local build and run
 
-From CI (GitHub Actions recommended) or local `buildx`:
+From repo root:
+
+```bash
+docker compose -f docker-compose.pi.yml up -d --build nas-cloud
+```
+
+Or using helper script on Pi:
+
+```bash
+chmod +x deploy/pi/deploy.sh
+./deploy/pi/deploy.sh
+```
+
+### 2.4 Enable auto-update
+
+Two supported modes:
+
+1) Watchtower (fully unattended):
+
+```bash
+docker compose -f docker-compose.pi.yml --profile autoupdate up -d watchtower
+```
+
+2) Controlled manual update (recommended for safer rollouts):
+
+```bash
+chmod +x deploy/pi/update.sh
+./deploy/pi/update.sh
+```
+
+### 2.5 Publish and pull multi-arch image
+
+Build and push one tag for multiple device architectures:
 
 ```bash
 docker buildx create --name nasbuilder --use
 docker buildx inspect --bootstrap
 
-docker buildx build ^
-  --platform linux/amd64,linux/arm64,linux/arm/v7 ^
-  -t ghcr.io/<ORG>/nas-cloud:latest ^
-  -t ghcr.io/<ORG>/nas-cloud:1.0.0 ^
+docker buildx build \
+  --platform linux/amd64,linux/arm64,linux/arm/v7 \
+  -t ghcr.io/<your-org>/nas-cloud:latest \
+  -t ghcr.io/<your-org>/nas-cloud:1.0.0 \
   --push .
 ```
 
-(Windows PowerShell line continuations can use `` ` `` instead of `^` if needed.)
-
-## 4.4 Runtime on Device
+Then on each device, set the image and deploy:
 
 ```bash
-docker run -d --name nas-cloud ^
-  -p 8000:8000 ^
-  -v D:\nascloud-data:/data ^
-  -e DATABASE_URL=sqlite:////data/nas_cloud.db ^
-  -e NAS_STORAGE_PATH=/data/nas_storage ^
-  --restart unless-stopped ^
-  ghcr.io/<ORG>/nas-cloud:latest
+export NAS_CLOUD_IMAGE=ghcr.io/<your-org>/nas-cloud:latest
+docker compose -f docker-compose.pi.yml up -d
 ```
 
-On Linux/Pi:
+### 2.6 Rollback strategy
+
+If a new version fails:
+
 ```bash
-docker run -d --name nas-cloud \
-  -p 8000:8000 \
-  -v /srv/nascloud-data:/data \
-  -e DATABASE_URL=sqlite:////data/nas_cloud.db \
-  -e NAS_STORAGE_PATH=/data/nas_storage \
-  --restart unless-stopped \
-  ghcr.io/<ORG>/nas-cloud:latest
+export NAS_CLOUD_IMAGE=ghcr.io/<your-org>/nas-cloud:<previous-tag>
+docker compose -f docker-compose.pi.yml up -d
 ```
 
----
-
-## 5) Auto-Update Strategy (Docker)
-
-Important: Containers should not self-mutate internally.  
-Use host/orchestrator-driven update flow.
-
-## Option 1: Watchtower (simple)
-Watchtower monitors image tags and recreates containers when new images are pushed.
-
-```yaml
-services:
-  nas-cloud:
-    image: ghcr.io/<ORG>/nas-cloud:latest
-    container_name: nas-cloud
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./data:/data
-    environment:
-      DATABASE_URL: sqlite:////data/nas_cloud.db
-      NAS_STORAGE_PATH: /data/nas_storage
-    restart: unless-stopped
-
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 300 --cleanup
-    restart: unless-stopped
-```
-
-## Option 2: Controlled update script (safer for production)
-- Pull new image.
-- Health-check new container.
-- Swap traffic.
-- Keep last working tag for rollback.
+Because `/data` is external, rollback keeps DB/files intact.
 
 ---
 
-## 6) Rollback Plan
+## 3. Access from Anywhere (after Docker deployment)
 
-Tag every release (do not rely only on `latest`).
+Recommended order:
 
-Rollback command:
-```bash
-docker stop nas-cloud
-docker rm nas-cloud
-docker run -d --name nas-cloud \
-  -p 8000:8000 \
-  -v /srv/nascloud-data:/data \
-  --restart unless-stopped \
-  ghcr.io/<ORG>/nas-cloud:<previous-version>
-```
+1) VPN overlay (Tailscale/WireGuard) — safest
+2) Cloudflare Tunnel — easy public access without open inbound ports
+3) Router port forwarding + reverse proxy TLS — most control, more ops overhead
 
-Data remains intact because `/data` is external.
+Do not expose plain HTTP directly to internet.
 
 ---
 
-## 7) Security & Reliability Baseline
+## 4. Standalone Executable Path (Alternative)
 
-- Run container as non-root user where possible.
-- Pin dependency versions.
-- Add health endpoint (`/health`).
-- Configure log rotation.
-- Use HTTPS via reverse proxy (Caddy/Nginx/Traefik) on LAN/WAN.
-- Back up `/data` daily and before each upgrade.
+Use this if Docker is unavailable.
 
----
+### 4.1 Packaging model
 
-## 8) CI/CD Release Flow (Recommended)
+- Build frontend assets first (`dist-drive`, `dist-photos`)
+- Package Python backend using PyInstaller
+- Include frontend dist folders with executable
+- Start local web server from executable
 
-On every tagged release:
-1. Run tests.
-2. Build multi-arch image.
-3. Push to GHCR/Docker Hub.
-4. Create release notes/changelog.
-5. Optional: trigger staged rollout (not immediate auto-update in all devices).
+### 4.2 Build steps per OS
 
----
-
-## 9) Standalone Executable Plan (No Docker)
-
-## 9.1 When to choose this
-Use for environments where Docker cannot be installed.
-
-## 9.2 Packaging approach
-- Backend: package Python app with **PyInstaller** (or Nuitka).
-- Frontend: pre-build static assets and include in package.
-- App starts local web server and opens browser (or use desktop shell like Tauri/Electron).
-
-## 9.3 Cross-platform build matrix
-Build on each target OS (preferred):
+Build on each target OS for best compatibility:
 
 - Windows: `.exe` + installer (Inno Setup/MSIX)
-- Linux: AppImage or `.deb`/`.rpm`
+- Linux: AppImage or `.deb`
 - macOS: `.app` + notarized `.dmg`
 
-## 9.4 Runtime data locations (per OS)
-Use user data directories, not install directory:
+### 4.3 Persistent data locations
 
-- Windows: `%ProgramData%\NASCloud\` or `%AppData%\NASCloud\`
-- Linux: `/var/lib/nascloud/` (service mode) or `~/.local/share/nascloud/`
-- macOS: `~/Library/Application Support/NASCloud/`
+Never write DB/files to installation directory.
 
-Store DB/files there exactly as:
+- Windows: `%ProgramData%/NASCloud` (service) or `%AppData%/NASCloud` (user)
+- Linux: `/var/lib/nascloud` (service) or `~/.local/share/nascloud`
+- macOS: `~/Library/Application Support/NASCloud`
+
+Store:
+
 - `nas_cloud.db`
 - `nas_storage/`
 
-## 9.5 Auto-update for executable apps
-Two patterns:
+### 4.4 Auto-update for executable apps
 
-1. **Built-in app updater framework**  
-   - Tauri/Electron updater channels.
-2. **External updater service**  
-   - App checks signed manifest, downloads next package, replaces app on restart.
+Use one of:
 
-Requirements:
-- Signed binaries
+- Built-in updater framework (Tauri/Electron style)
+- External signed-update manifest service
+
+Minimum update requirements:
+
+- signed binaries
 - HTTPS update endpoint
-- Versioned releases
-- Rollback cache of prior version
-
-## 9.6 Service mode (headless)
-For “always-on” behavior:
-- Windows: install as Windows Service
-- Linux: `systemd` service unit
-- macOS: LaunchDaemon/LaunchAgent
+- semantic versioning
+- one-version rollback cache
 
 ---
 
-## 10) Recommended Path for This Project
+## 5. Operational Checklist
 
-1. Implement/keep **single Docker image** as primary distribution.
-2. Publish **multi-arch tags** (`amd64`, `arm64`, optional `arm/v7`).
-3. Use host volume `/data` for DB + files.
-4. Use Watchtower only if fully unattended updates are required.
-5. Add controlled rollout + rollback for production.
-6. Build standalone installer later for non-Docker users.
-
----
-
-## 11) Deployment Checklist
-
-- [ ] Multi-arch image builds successfully
-- [ ] `/data` mount verified
-- [ ] DB survives restart/redeploy
-- [ ] Upload files survive restart/redeploy
-- [ ] Health checks pass
-- [ ] Backup/restore tested
-- [ ] Update tested
-- [ ] Rollback tested
-- [ ] TLS/reverse proxy configured
-- [ ] Release notes published
-
----
-
-## 12) Minimum Commands Quick Reference
-
-Build and run:
-```bash
-docker build -t nas-cloud:local .
-docker run -d --name nas-cloud -p 8000:8000 -v ./data:/data --restart unless-stopped nas-cloud:local
-```
-
-Update:
-```bash
-docker pull ghcr.io/<ORG>/nas-cloud:latest
-docker stop nas-cloud && docker rm nas-cloud
-docker run -d --name nas-cloud -p 8000:8000 -v ./data:/data --restart unless-stopped ghcr.io/<ORG>/nas-cloud:latest
-```
-
-Rollback:
-```bash
-docker run -d --name nas-cloud -p 8000:8000 -v ./data:/data --restart unless-stopped ghcr.io/<ORG>/nas-cloud:<old-tag>
-```
+- [ ] `docker compose -f docker-compose.pi.yml up -d --build` succeeds
+- [ ] `http://<host>:8000/health` returns healthy
+- [ ] `http://<host>:8000/drive` loads
+- [ ] restart keeps data (`docker restart nas-cloud`)
+- [ ] update succeeds (`deploy/pi/update.sh`)
+- [ ] rollback tested with previous tag
+- [ ] backups scheduled for `./data`
