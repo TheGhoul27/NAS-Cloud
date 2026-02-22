@@ -18,12 +18,13 @@ const APP_TYPE = typeof __APP_TYPE__ !== 'undefined' ? __APP_TYPE__ : 'drive';
 
 function App() {
   const isPhotosApp = APP_TYPE === 'photos';
+  const appBasePath = isPhotosApp ? '/photos' : '/drive';
 
   return (
     <ThemeProvider>
       <AuthProvider>
         <PWAInstallPrompt />
-        <Router>
+        <Router basename={appBasePath}>
         <Routes>
           <Route path="/login" element={<Login appType={APP_TYPE} />} />
           <Route path="/register" element={<Register appType={APP_TYPE} />} />

@@ -25,7 +25,7 @@ export default defineConfig({
   define: {
     __APP_TYPE__: JSON.stringify('drive')
   },
-  base: './',
+  base: '/drive/',
   build: {
     outDir: 'dist-drive',
     copyPublicDir: true,

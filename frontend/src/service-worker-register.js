@@ -1,5 +1,8 @@
 // Register service worker for PWA functionality
 export function registerServiceWorker() {
+  const baseUrl = import.meta.env.BASE_URL || '/';
+  const serviceWorkerUrl = `${baseUrl}service-worker.js`;
+
   const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
   if (!window.isSecureContext && !isLocalhost) {
     console.warn('[PWA] Service Worker requires HTTPS (or localhost). Current origin is not secure:', window.location.origin);
@@ -9,7 +12,7 @@ export function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker
-        .register('/service-worker.js')
+        .register(serviceWorkerUrl)
         .then((registration) => {
           console.log('[PWA] Service Worker registered successfully:', registration);
 
@@ -40,10 +43,12 @@ export function registerServiceWorker() {
 
 // Show update notification
 function showUpdateNotification() {
+  const baseUrl = import.meta.env.BASE_URL || '/';
+
   if (Notification.permission === 'granted') {
     new Notification('NAS Cloud Updated', {
       body: 'A new version is available. Refresh the page to update.',
-      icon: '/manifest.json',
+      icon: `${baseUrl}manifest.json`,
       badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect fill="%23ef4444" width="192" height="192"/></svg>',
     });
   }

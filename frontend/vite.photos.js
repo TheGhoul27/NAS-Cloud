@@ -25,7 +25,7 @@ export default defineConfig({
   define: {
     __APP_TYPE__: JSON.stringify('photos')
   },
-  base: './',
+  base: '/photos/',
   build: {
     outDir: 'dist-photos',
     copyPublicDir: true,

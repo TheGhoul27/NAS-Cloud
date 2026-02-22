@@ -10,6 +10,12 @@ const api = axios.create({
   },
 });
 
+const getLoginPath = () => {
+  const currentPath = window.location.pathname || '';
+  const basePath = currentPath.startsWith('/photos') ? '/photos' : '/drive';
+  return `${basePath}/login`;
+};
+
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
@@ -40,11 +46,11 @@ api.interceptors.response.use(
           // For now, just redirect to login
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
+          window.location.href = getLoginPath();
         } catch (refreshError) {
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
+          window.location.href = getLoginPath();
         }
       }
     }
