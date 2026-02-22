@@ -1,0 +1,74 @@
+{
+  "name": "NAS Cloud",
+  "short_name": "NAS Cloud",
+  "description": "A versatile cloud storage platform accessible from any device - phone, tablet, or desktop",
+  "id": "/",
+  "start_url": "/login",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#ef4444",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "My Drive",
+      "short_name": "Drive",
+      "description": "Access your cloud storage",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/icons/drive-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Photos",
+      "short_name": "Photos",
+      "description": "View your photo gallery",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/icons/photos-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Admin Panel",
+      "short_name": "Admin",
+      "description": "Admin dashboard",
+      "url": "/admin/login",
+      "icons": [
+        {
+          "src": "/icons/admin-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

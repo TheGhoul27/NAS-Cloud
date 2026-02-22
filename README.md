@@ -71,58 +71,31 @@ pip install -r requirements.txt
 
 ### 3. Setup Frontend
 
-**Windows:**
-```cmd
-start-frontend.bat
-```
-
-**Linux/macOS:**
-```bash
-chmod +x start-frontend.sh
-./start-frontend.sh
-```
-
 **Manual setup:**
 ```bash
 cd frontend
 npm install
 ```
 
-### 4. Start Development Servers
+### 4. Start Applications (Recommended)
 
-**Option 1: Separate Frontend and Backend (Recommended for development)**
-
-Terminal 1 (Backend):
-```bash
-cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+**Windows (all-in-one):**
+```powershell
+.\start-all.ps1
 ```
 
-Terminal 2 (Frontend):
-```bash
-cd frontend
-npm run dev
-```
-
-**Option 2: Backend serves frontend (Production-like)**
-
-Build frontend first:
-```bash
-cd frontend
-npm run build
-```
-
-Then start backend:
-```bash
-cd backend
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
+This starts:
+- Backend API on port `8000`
+- Drive app on port `3000` (Express + HTTPS)
+- Photos app on port `3001` (Express + HTTPS)
 
 ## Access the Applications
 
-**With Separate Servers (Development):**
-- **Drive App**: <http://localhost:3000/drive>
-- **Photos App**: <http://localhost:3000/photos>
+**With Express Frontend + Backend (Current):**
+- **Drive App**: <https://localhost:3000/login>
+- **Photos App**: <https://localhost:3001/login>
+- **Admin (Drive)**: <https://localhost:3000/admin/login>
+- **Admin (Photos)**: <https://localhost:3001/admin/login>
 - **API Documentation**: <http://localhost:8000/docs>
 
 **With Backend Serving Frontend:**
@@ -213,87 +186,3 @@ Coming next:
 ## License
 
 This project is licensed under the MIT License.
-
-- **Drive**: File management with upload, download, folder organization, and search
-- **Photos**: Timeline view with EXIF data, thumbnails, and lightbox gallery
-- **Multi-user**: Authentication and user isolation
-- **Cross-platform**: Native installers for Windows, macOS, and Linux
-
-## Architecture
-
-- **Backend**: FastAPI + SQLModel + PostgreSQL
-- **Worker**: Dramatiq for background tasks (thumbnails, video processing)
-- **Frontend**: React + TypeScript with Vite
-- **Packaging**: PyInstaller for standalone binaries
-
-## Quick Start
-
-### Development Setup
-
-1. **Prerequisites**:
-   - Python 3.11+
-   - Node.js 18+
-   - Docker & Docker Compose
-   - PostgreSQL 16
-
-2. **Clone and setup**:
-   ```bash
-   git clone https://github.com/TheGhoul27/NAS-Cloud.git
-   cd NAS-Cloud
-   ```
-
-3. **Backend setup**:
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   ```
-
-4. **Database setup**:
-   ```bash
-   docker compose up -d db cache
-   ```
-
-5. **Start development servers**:
-   ```bash
-   # Terminal 1: Backend API
-   uvicorn nas_cloud.app.main:app --reload
-
-   # Terminal 2: Background worker
-   dramatiq nas_cloud.worker.tasks --processes 1 --threads 4
-
-   # Terminal 3: Frontend
-   cd frontend
-   npm install
-   npm run dev
-   ```
-
-## Project Structure
-
-```
-nas_cloud/
-├── backend/           # Python FastAPI backend
-│   ├── nas_cloud/
-│   │   ├── app/       # FastAPI application
-│   │   └── worker/    # Background tasks
-│   └── tests/
-├── frontend/          # React frontend
-│   ├── src/
-│   └── public/
-├── infra/             # Docker and deployment
-└── docs/              # Documentation
-```
-
-## Development Timeline
-
-- **Sprint 1** (Jul 14-20): Auth & DB foundation
-- **Sprint 2** (Jul 21-27): File API + Drive MVP
-- **Sprint 3** (Jul 28-Aug 3): Worker & media assets
-- **Sprint 4** (Aug 4-10): Photos timeline
-- **Sprint 5** (Aug 11-17): Search & trash recovery
-- **Sprint 6** (Aug 18-24): Packaging & auto-start
-- **Sprint 7** (Aug 25-31): Cross-platform installers
-- **Sprint 8** (Sep 1-7): Polish & hardening
-
-## License
-
-MIT License - see LICENSE file for details.

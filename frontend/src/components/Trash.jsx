@@ -34,7 +34,7 @@ const Trash = () => {
       console.error('Error fetching trash items:', error);
       if (error.response?.status === 401) {
         logout();
-        navigate('/drive/login');
+        navigate('/login');
       }
     } finally {
       setLoading(false);

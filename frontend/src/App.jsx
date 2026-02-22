@@ -3,64 +3,67 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminProtectedRoute from './components/AdminProtectedRoute';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 import Login from './components/Login';
 import Register from './components/Register';
-import Drive from './components/Drive';
-import Photos from './components/Photos';
+import DriveApp from './components/DriveApp';
+import PhotosApp from './components/PhotosApp';
 import DriveTrash from './components/DriveTrash';
 import PhotosTrash from './components/PhotosTrash';
 import AdminLogin from './components/AdminLogin';
 import AdminPanel from './components/AdminPanel';
 
+const APP_TYPE = typeof __APP_TYPE__ !== 'undefined' ? __APP_TYPE__ : 'drive';
+
 function App() {
+  const isPhotosApp = APP_TYPE === 'photos';
+
   return (
     <ThemeProvider>
       <AuthProvider>
+        <PWAInstallPrompt />
         <Router>
         <Routes>
-          {/* Default redirect to drive */}
-          <Route path="/" element={<Navigate to="/drive" replace />} />
+          <Route path="/login" element={<Login appType={APP_TYPE} />} />
+          <Route path="/register" element={<Register appType={APP_TYPE} />} />
+          <Route path="/trash" element={
+            <ProtectedRoute>
+              {isPhotosApp ? <PhotosTrash /> : <DriveTrash />}
+            </ProtectedRoute>
+          } />
+          <Route path="/" element={
+            <ProtectedRoute>
+              {isPhotosApp ? <PhotosApp /> : <DriveApp />}
+            </ProtectedRoute>
+          } />
+
+          {/* Legacy redirects */}
+          <Route path="/drive" element={<Navigate to="/" replace />} />
+          <Route path="/drive/login" element={<Navigate to="/login" replace />} />
+          <Route path="/drive/register" element={<Navigate to="/register" replace />} />
+          <Route path="/drive/trash" element={<Navigate to="/trash" replace />} />
+          <Route path="/photos" element={<Navigate to="/" replace />} />
+          <Route path="/photos/login" element={<Navigate to="/login" replace />} />
+          <Route path="/photos/register" element={<Navigate to="/register" replace />} />
+          <Route path="/photos/trash" element={<Navigate to="/trash" replace />} />
           
-          {/* Drive App Routes */}
-          <Route path="/drive/login" element={<Login />} />
-          <Route path="/drive/register" element={<Register />} />
-          <Route path="/drive/trash" element={
-            <ProtectedRoute>
-              <DriveTrash />
-            </ProtectedRoute>
+          {/* Admin Routes embedded in each app */}
+          <Route path="/admin/login" element={<AdminLogin appType={APP_TYPE} />} />
+          <Route path="/admin/dashboard" element={
+            <AdminProtectedRoute>
+              <AdminPanel appType={APP_TYPE} />
+            </AdminProtectedRoute>
           } />
-          <Route path="/drive" element={
-            <ProtectedRoute>
-              <Drive />
-            </ProtectedRoute>
-          } />
-          
-          {/* Photos App Routes */}
-          <Route path="/photos/login" element={<Login />} />
-          <Route path="/photos/register" element={<Register />} />
-          <Route path="/photos/trash" element={
-            <ProtectedRoute>
-              <PhotosTrash />
-            </ProtectedRoute>
-          } />
-          <Route path="/photos" element={
-            <ProtectedRoute>
-              <Photos />
-            </ProtectedRoute>
-          } />
-          
-          {/* Admin Routes - Separate from regular user system */}
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={<AdminPanel />} />
           <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
           
           {/* Catch all route */}
-          <Route path="*" element={<Navigate to="/drive" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
-      </Router>
-    </AuthProvider>
-  </ThemeProvider>
-  );
-}
+        </Router>
+        </AuthProvider>
+      </ThemeProvider>
+    );
+  }
 
 export default App;

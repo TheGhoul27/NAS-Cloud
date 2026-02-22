@@ -3,17 +3,26 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "npm run serve:drive",
+    "serve:drive": "cross-env APP_TYPE=drive PORT=3000 node express-server.js",
+    "serve:photos": "cross-env APP_TYPE=photos PORT=3001 node express-server.js",
+    "build": "vite --config vite.drive.js build",
+    "build:drive": "vite --config vite.drive.js build",
+    "build:photos": "vite --config vite.photos.js build",
+    "build:all": "npm run build:drive && npm run build:photos",
+    "start:drive": "npm run build:drive && npm run serve:drive",
+    "start:photos": "npm run build:photos && npm run serve:photos"
   },
   "dependencies": {
+    "axios": "^1.6.0",
+    "cross-env": "^7.0.3",
+    "express": "^4.21.2",
+    "http-proxy-middleware": "^3.0.3",
+    "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.8.0",
-    "axios": "^1.6.0",
     "react-hook-form": "^7.48.0",
-    "lucide-react": "^0.294.0"
+    "react-router-dom": "^6.8.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^3.1.0",

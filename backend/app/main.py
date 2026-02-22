@@ -9,6 +9,9 @@ from app.api.admin import router as admin_router
 from app.models.database import create_db_and_tables
 from app.services.trash_cleanup import trash_cleanup_service
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 @asynccontextmanager
@@ -27,10 +30,18 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware for development
+# CORS middleware - read from environment or use development defaults
+allowed_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:5173,http://127.0.0.1:5173"
+).split(",")
+
+allow_all_cors = os.getenv("CORS_ALLOW_ALL", "false").lower() in ("1", "true", "yes")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Development frontend
+    allow_origins=[] if allow_all_cors else allowed_origins,
+    allow_origin_regex=".*" if allow_all_cors else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

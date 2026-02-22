@@ -94,7 +94,7 @@ const Photos = () => {
       console.error('Error fetching media files:', error);
       if (error.response?.status === 401) {
         logout();
-        navigate('/photos/login');
+        navigate('/login');
       }
     } finally {
       setLoading(false);
@@ -287,7 +287,7 @@ const Photos = () => {
       console.error('Search error:', error);
       if (error.response?.status === 401) {
         logout();
-        navigate('/photos/login');
+        navigate('/login');
       }
     } finally {
       setIsSearching(false);

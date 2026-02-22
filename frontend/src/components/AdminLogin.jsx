@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTheme } from '../contexts/ThemeContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Shield, Lock, User, Sun, Moon, ArrowRight } from 'lucide-react';
 import axios from 'axios';
 
-const AdminLogin = () => {
+const AdminLogin = ({ appType = 'drive' }) => {
   const { theme, toggleTheme, isDark } = useTheme();
   const navigate = useNavigate();
+  const adminApiBase = import.meta.env.VITE_API_URL || '/api';
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,7 +23,7 @@ const AdminLogin = () => {
       // Use basic auth for admin login
       const credentials = btoa(`${data.username}:${data.password}`);
       
-      const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/dashboard`, {
+      const response = await axios.get(`${adminApiBase}/admin/dashboard`, {
         headers: {
           'Authorization': `Basic ${credentials}`
         }
@@ -35,7 +36,13 @@ const AdminLogin = () => {
       }
     } catch (error) {
       console.error('Admin login error:', error);
-      setError('Invalid admin credentials');
+      if (error.response?.status === 401) {
+        setError('Invalid admin credentials');
+      } else if (!error.response) {
+        setError('Backend is unreachable. Make sure the API server is running on port 8000.');
+      } else {
+        setError('Admin login failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -187,6 +194,29 @@ const AdminLogin = () => {
                 </>
               )}
             </button>
+
+            {/* Navigation Links */}
+            <div className={`mt-6 pt-6 border-t ${
+              isDark ? 'border-gray-700/50' : 'border-gray-200'
+            }`}>
+              <p className={`text-xs ${
+                isDark ? 'text-gray-500' : 'text-gray-500'
+              } mb-3 text-center`}>
+                Back to {appType === 'photos' ? 'Photos' : 'Drive'}:
+              </p>
+              <div className="flex gap-2 justify-center flex-wrap">
+                <Link
+                  to="/login"
+                  className={`text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
+                    isDark
+                      ? 'text-blue-400 hover:bg-gray-700'
+                      : 'text-blue-600 hover:bg-gray-100'
+                  }`}
+                >
+                  App Login
+                </Link>
+              </div>
+            </div>
           </form>
         </div>
       </div>

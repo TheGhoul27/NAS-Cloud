@@ -5,7 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, LogIn, Cloud, Mail, Lock, ArrowRight, Sun, Moon } from 'lucide-react';
 
-const Login = () => {
+const Login = ({ appType = 'drive' }) => {
   const { login } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
   const navigate = useNavigate();
@@ -23,10 +23,7 @@ const Login = () => {
     const result = await login(data);
     
     if (result.success) {
-      // Redirect based on which app is being accessed
-      const isPhotosApp = location.pathname.includes('/photos');
-      const redirectPath = isPhotosApp ? '/photos' : '/drive';
-      navigate(redirectPath, { replace: true });
+      navigate('/', { replace: true });
     } else {
       setError(result.error);
     }
@@ -34,8 +31,7 @@ const Login = () => {
     setIsLoading(false);
   };
 
-  // Check if we're on the photos login page
-  const isPhotosApp = location.pathname.includes('/photos');
+  const isPhotosApp = appType === 'photos' || location.pathname.includes('/photos');
   const appName = isPhotosApp ? 'Photos' : 'Drive';
 
   return (
@@ -242,7 +238,7 @@ const Login = () => {
             } text-sm`}>
               Don't have an account?{' '}
               <Link 
-                to={isPhotosApp ? "/photos/register" : "/drive/register"} 
+                to="/register"
                 className={`font-medium ${
                   isDark 
                     ? 'text-blue-400 hover:text-blue-300' 
@@ -252,6 +248,28 @@ const Login = () => {
                 Sign up here
               </Link>
             </p>
+            
+            {/* Admin Access */}
+            <div className={`mt-4 pt-4 border-t ${
+              isDark ? 'border-gray-700' : 'border-gray-200'
+            }`}>
+              <p className={`${
+                isDark ? 'text-gray-500' : 'text-gray-500'
+              } text-xs mb-2`}>
+                Admin?
+              </p>
+              <Link
+                to="/admin/login"
+                className={`inline-flex items-center gap-2 text-sm font-medium ${
+                  isDark 
+                    ? 'text-orange-400 hover:text-orange-300' 
+                    : 'text-orange-600 hover:text-orange-700'
+                } transition-colors duration-300`}
+              >
+                <span>Access Admin Panel</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>

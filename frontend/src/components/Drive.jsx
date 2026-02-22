@@ -111,7 +111,7 @@ const Drive = () => {
       console.error('Error fetching files:', error);
       if (error.response?.status === 401) {
         logout();
-        navigate('/drive/login');
+        navigate('/login');
       }
     } finally {
       setLoading(false);

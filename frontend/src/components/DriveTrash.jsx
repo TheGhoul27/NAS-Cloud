@@ -34,7 +34,7 @@ const DriveTrash = () => {
       console.error('Error fetching trash items:', error);
       if (error.response?.status === 401) {
         logout();
-        navigate('/drive/login');
+        navigate('/login');
       }
     } finally {
       setLoading(false);
@@ -116,7 +116,7 @@ const DriveTrash = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <button
-                onClick={() => navigate('/drive')}
+                onClick={() => navigate('/')}
                 className={`mr-4 p-2 rounded-lg transition-colors ${
                   isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
                 }`}

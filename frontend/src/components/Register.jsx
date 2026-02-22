@@ -5,7 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, UserPlus, Cloud, Mail, Lock, Shield, ArrowRight, Sun, Moon, User, Phone } from 'lucide-react';
 
-const Register = () => {
+const Register = ({ appType = 'drive' }) => {
   const { register: registerUser } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
   const navigate = useNavigate();
@@ -25,10 +25,7 @@ const Register = () => {
     const result = await registerUser(data);
 
     if (result.success) {
-      // Redirect to login page after successful registration
-      const isPhotosApp = location.pathname.includes('/photos');
-      const loginPath = isPhotosApp ? '/photos/login' : '/drive/login';
-      navigate(loginPath, {
+      navigate('/login', {
         replace: true,
         state: { 
           message: 'Registration successful! Your account is pending admin approval. You will be able to sign in once an administrator approves your registration.',
@@ -42,8 +39,7 @@ const Register = () => {
     setIsLoading(false);
   };
 
-  // Determine which app we're registering for based on the URL
-  const isPhotosApp = location.pathname.includes('/photos');
+  const isPhotosApp = appType === 'photos' || location.pathname.includes('/photos');
   const appName = isPhotosApp ? 'Photos' : 'Drive';
 
   return (
@@ -323,7 +319,7 @@ const Register = () => {
               } text-sm`}>
               Already have an account?{' '}
               <Link
-                to={isPhotosApp ? "/photos/login" : "/drive/login"}
+                to="/login"
                 className={`font-medium ${isDark
                     ? 'text-blue-400 hover:text-blue-300'
                     : 'text-blue-600 hover:text-blue-700'

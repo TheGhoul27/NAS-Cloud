@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Users, 
   UserCheck, 
@@ -27,9 +27,10 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 
-const AdminPanel = () => {
+const AdminPanel = ({ appType = 'drive' }) => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const adminApiBase = import.meta.env.VITE_API_URL || '/api';
   const [users, setUsers] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +82,7 @@ const AdminPanel = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/users`, {
+      const response = await axios.get(`${adminApiBase}/admin/users`, {
         headers: getAuthHeaders()
       });
       setUsers(response.data);
@@ -96,7 +97,7 @@ const AdminPanel = () => {
 
   const fetchPendingUsers = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/users/pending`, {
+      const response = await axios.get(`${adminApiBase}/admin/users/pending`, {
         headers: getAuthHeaders()
       });
       setPendingUsers(response.data);
@@ -114,7 +115,7 @@ const AdminPanel = () => {
   const handleUserAction = async (userId, action) => {
     setActionLoading(`${userId}-${action}`);
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/users/approve`, {
+      await axios.post(`${adminApiBase}/admin/users/approve`, {
         user_id: userId,
         action: action
       }, {
@@ -138,7 +139,7 @@ const AdminPanel = () => {
   const toggleAdminRole = async (userId) => {
     setActionLoading(`${userId}-toggle`);
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/users/${userId}/toggle-admin`, {}, {
+      await axios.post(`${adminApiBase}/admin/users/${userId}/toggle-admin`, {}, {
         headers: getAuthHeaders()
       });
       await fetchUsers();
@@ -176,7 +177,7 @@ const AdminPanel = () => {
 
     try {
       await axios.post(
-        'http://localhost:8000/api/admin/change-password',
+        `${adminApiBase}/admin/change-password`,
         {
           current_password: passwordData.currentPassword,
           new_password: passwordData.newPassword
@@ -218,7 +219,7 @@ const AdminPanel = () => {
 
     try {
       await axios.post(
-        'http://localhost:8000/api/admin/users/change-password',
+        `${adminApiBase}/admin/users/change-password`,
         {
           user_id: userPasswordModal.user.id,
           new_password: userPasswordData.newPassword
@@ -292,7 +293,7 @@ const AdminPanel = () => {
   const fetchStorageOverview = async () => {
     setStorageLoading(true);
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/overview`, {
+      const response = await axios.get(`${adminApiBase}/admin/storage/overview`, {
         headers: getAuthHeaders()
       });
       setStorageOverview(response.data);
@@ -309,7 +310,7 @@ const AdminPanel = () => {
 
   const fetchDrives = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/drives`, {
+      const response = await axios.get(`${adminApiBase}/admin/storage/drives`, {
         headers: getAuthHeaders()
       });
       setDrives(response.data.drives);
@@ -328,8 +329,8 @@ const AdminPanel = () => {
     
     try {
       const url = driveModal.mode === 'create'
-        ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/drives`
-        : `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/drives/${driveModal.drive.id}`;
+        ? `${adminApiBase}/admin/storage/drives`
+        : `${adminApiBase}/admin/storage/drives/${driveModal.drive.id}`;
       
       const method = driveModal.mode === 'create' ? 'post' : 'put';
       
@@ -358,7 +359,7 @@ const AdminPanel = () => {
 
   const handleSetDefaultDrive = async (driveId) => {
     try {
-      await axios.put(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/drives/${driveId}/set-default`, {}, {
+      await axios.put(`${adminApiBase}/admin/storage/drives/${driveId}/set-default`, {}, {
         headers: getAuthHeaders()
       });
       await fetchDrives();
@@ -375,7 +376,7 @@ const AdminPanel = () => {
     }
 
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/admin/storage/drives/${driveId}?force=${force}`, {
+      await axios.delete(`${adminApiBase}/admin/storage/drives/${driveId}?force=${force}`, {
         headers: getAuthHeaders()
       });
       await fetchDrives();
@@ -460,6 +461,19 @@ const AdminPanel = () => {
               <LogOut className="h-4 w-4" />
               Logout
             </button>
+
+            {/* Navigation to Apps */}
+            <div className="flex gap-2 ml-4 border-l pl-4" style={{ borderColor: isDark ? 'rgb(55, 65, 81)' : 'rgb(229, 231, 235)' }}>
+              <Link
+                to="/"
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <HardDrive className="h-4 w-4" />
+                {appType === 'photos' ? 'Photos' : 'Drive'}
+              </Link>
+            </div>
           </div>
         </div>
 

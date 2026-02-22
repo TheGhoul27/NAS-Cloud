@@ -15,16 +15,12 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   }
 
   if (!user) {
-    // Determine the appropriate login path based on the current location
-    const isPhotosApp = location.pathname.includes('/photos');
-    const loginPath = isPhotosApp ? '/photos/login' : '/drive/login';
-    
-    return <Navigate to={loginPath} state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // Check admin requirement
   if (requireAdmin && user.role !== 'admin') {
-    return <Navigate to="/drive" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return children;
