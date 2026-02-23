@@ -8,7 +8,10 @@ import axios from 'axios';
 const AdminLogin = ({ appType = 'drive' }) => {
   const { theme, toggleTheme, isDark } = useTheme();
   const navigate = useNavigate();
-  const adminApiBase = import.meta.env.VITE_API_URL || '/api';
+  const rawApiBase = (import.meta.env.VITE_API_URL || '').trim();
+  const adminApiBase = rawApiBase
+    ? `${rawApiBase.replace(/\/+$/, '')}${rawApiBase.replace(/\/+$/, '').endsWith('/api') ? '' : '/api'}`
+    : '/api';
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');

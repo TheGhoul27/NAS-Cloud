@@ -3,6 +3,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlmodel import Session, select, desc
 from app.models.database import get_session, User, UserStatus, UserRole, AdminCredentials, StorageDrive
 from app.schemas.auth import UserListResponse, UserApprovalRequest, UserPasswordChange
+from app.schemas.auth import UserStorageQuotaChange
 from app.schemas.storage import (
     DriveCreate, DriveUpdate, DriveResponse, DriveUsageResponse, 
     DriveListResponse, StorageOverviewResponse, UserMigrationRequest
@@ -109,6 +110,7 @@ async def get_all_users(
             firstname=user.firstname,
             lastname=user.lastname,
             phone=user.phone,
+            storage_quota_gb=user.storage_quota_gb or 20.0,
             role=user.role,
             status=user.status,
             created_at=user.created_at,
@@ -134,6 +136,7 @@ async def get_pending_users(
             firstname=user.firstname,
             lastname=user.lastname,
             phone=user.phone,
+            storage_quota_gb=user.storage_quota_gb or 20.0,
             role=user.role,
             status=user.status,
             created_at=user.created_at,
@@ -348,6 +351,61 @@ async def change_user_password(
             detail=f"Failed to change user password: {str(e)}"
         )
 
+@router.put("/users/{user_id}/storage-quota")
+async def update_user_storage_quota(
+    user_id: int,
+    quota_data: UserStorageQuotaChange,
+    admin_user: str = Depends(verify_admin_credentials),
+    session: Session = Depends(get_session)
+):
+    """Update allocated storage quota (GB) for a specific user"""
+    # Find user
+    statement = select(User).where(User.id == user_id)
+    user = session.exec(statement).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    if quota_data.storage_quota_gb <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Storage quota must be greater than 0 GB"
+        )
+
+    # Prevent lowering quota below current usage
+    current_usage_bytes = storage_service.get_user_storage_size(
+        user.storage_id,
+        drive_id=user.storage_drive_id
+    )
+    requested_quota_bytes = int(quota_data.storage_quota_gb * 1024 * 1024 * 1024)
+
+    if current_usage_bytes > requested_quota_bytes:
+        current_usage_gb = round(current_usage_bytes / (1024**3), 2)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Quota cannot be lower than current usage ({current_usage_gb} GB)"
+        )
+
+    try:
+        user.storage_quota_gb = round(float(quota_data.storage_quota_gb), 2)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        return {
+            "message": "Storage quota updated successfully",
+            "user_id": user.id,
+            "storage_quota_gb": user.storage_quota_gb
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update storage quota: {str(e)}"
+        )
+
 # Storage Management Endpoints
 
 @router.get("/storage/overview", response_model=StorageOverviewResponse)
@@ -397,7 +455,7 @@ async def get_all_drives(
         statement = select(StorageDrive).order_by(desc(StorageDrive.created_at))
         drives = session.exec(statement).all()
         
-        drive_responses = [DriveResponse.model_validate(drive) for drive in drives]
+        drive_responses = [DriveResponse.model_validate(drive, from_attributes=True) for drive in drives]
         
         return DriveListResponse(
             drives=drive_responses,
@@ -423,7 +481,7 @@ async def create_drive(
             capacity_gb=drive_data.capacity_gb,
             description=drive_data.description
         )
-        return DriveResponse.model_validate(new_drive)
+        return DriveResponse.model_validate(new_drive, from_attributes=True)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -451,7 +509,7 @@ async def update_drive(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Drive not found"
             )
-        return DriveResponse.model_validate(updated_drive)
+        return DriveResponse.model_validate(updated_drive, from_attributes=True)
     except HTTPException:
         raise
     except Exception as e:

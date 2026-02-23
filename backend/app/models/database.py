@@ -49,6 +49,7 @@ class User(SQLModel, table=True):
     phone: Optional[str] = Field(default=None)
     storage_id: str = Field(unique=True, index=True)  # Unique folder identifier
     storage_drive_id: Optional[int] = Field(default=None, foreign_key="storagedrive.id")  # Which drive user is on
+    storage_quota_gb: float = Field(default=20.0)  # Allocated storage cap per user
     role: UserRole = Field(default=UserRole.USER)
     status: UserStatus = Field(default=UserStatus.PENDING)
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -74,6 +75,21 @@ else:
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
+
+    # Lightweight migration for older databases that predate storage_quota_gb
+    try:
+        with engine.begin() as conn:
+            if engine.dialect.name == "sqlite":
+                column_rows = conn.exec_driver_sql('PRAGMA table_info("user")').fetchall()
+                columns = [row[1] for row in column_rows]
+                if "storage_quota_gb" not in columns:
+                    conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN storage_quota_gb FLOAT DEFAULT 20.0')
+                conn.exec_driver_sql('UPDATE "user" SET storage_quota_gb = 20.0 WHERE storage_quota_gb IS NULL')
+            else:
+                conn.exec_driver_sql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS storage_quota_gb DOUBLE PRECISION DEFAULT 20.0')
+                conn.exec_driver_sql('UPDATE "user" SET storage_quota_gb = 20.0 WHERE storage_quota_gb IS NULL')
+    except Exception:
+        pass
     
     # Initialize default settings and drives after tables are created
     try:

@@ -70,27 +70,19 @@ const ResponsiveSidebar = ({
       {/* Navigation Links */}
       <div className="px-4 sm:px-6 py-4 space-y-2">
         <button
-          onClick={() => onNavigate('/drive')}
-          className={`w-full flex items-center p-3 rounded-lg transition-colors ${
-            currentApp === 'drive'
-              ? (isDark ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700')
-              : (isDark ? 'hover:bg-gray-700 text-gray-300 hover:text-white' : 'hover:bg-gray-50 text-gray-600 hover:text-gray-900')
-          }`}
-        >
-          <FolderOpen className="h-5 w-5 mr-3" />
-          <span className="text-sm font-medium">My Drive</span>
-        </button>
-        
-        <button
-          onClick={() => onNavigate('/photos')}
+          onClick={() => onNavigate('/')}
           className={`w-full flex items-center p-3 rounded-lg transition-colors ${
             currentApp === 'photos'
               ? (isDark ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700')
-              : (isDark ? 'hover:bg-gray-700 text-gray-300 hover:text-white' : 'hover:bg-gray-50 text-gray-600 hover:text-gray-900')
+              : (isDark ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700')
           }`}
         >
-          <Camera className="h-5 w-5 mr-3" />
-          <span className="text-sm font-medium">Photos</span>
+          {currentApp === 'photos' ? (
+            <Camera className="h-5 w-5 mr-3" />
+          ) : (
+            <FolderOpen className="h-5 w-5 mr-3" />
+          )}
+          <span className="text-sm font-medium">{currentApp === 'photos' ? 'Photos' : 'My Drive'}</span>
         </button>
       </div>
 
@@ -171,7 +163,7 @@ const ResponsiveSidebar = ({
         {/* Bottom Actions */}
         <div className="mt-auto pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
           <button
-            onClick={() => onNavigate(currentApp === 'photos' ? '/photos/trash' : '/drive/trash')}
+            onClick={() => onNavigate('/trash')}
             className={`w-full flex items-center p-3 rounded-lg transition-colors touch-target ${
               isDark ? 'hover:bg-gray-700 text-gray-300 hover:text-white' : 'hover:bg-gray-50 text-gray-600 hover:text-gray-900'
             }`}

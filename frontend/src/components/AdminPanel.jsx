@@ -30,17 +30,24 @@ import axios from 'axios';
 const AdminPanel = ({ appType = 'drive' }) => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
-  const adminApiBase = import.meta.env.VITE_API_URL || '/api';
+  const rawApiBase = (import.meta.env.VITE_API_URL || '').trim();
+  const adminApiBase = rawApiBase
+    ? `${rawApiBase.replace(/\/+$/, '')}${rawApiBase.replace(/\/+$/, '').endsWith('/api') ? '' : '/api'}`
+    : '/api';
+  const rawStorageRefreshMs = parseInt(import.meta.env.VITE_ADMIN_STORAGE_REFRESH_MS || '86400000', 10);
+  const storageRefreshMs = Number.isFinite(rawStorageRefreshMs) ? Math.max(0, rawStorageRefreshMs) : 86400000;
   const [users, setUsers] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pending');
   const [actionLoading, setActionLoading] = useState(null);
+  const [quotaDrafts, setQuotaDrafts] = useState({});
   
   // Storage management state
   const [storageOverview, setStorageOverview] = useState(null);
   const [drives, setDrives] = useState([]);
   const [storageLoading, setStorageLoading] = useState(false);
+  const [storageError, setStorageError] = useState('');
   const [driveModal, setDriveModal] = useState({ show: false, drive: null, mode: 'create' });
   const [driveFormData, setDriveFormData] = useState({
     name: '',
@@ -148,6 +155,59 @@ const AdminPanel = ({ appType = 'drive' }) => {
       if (error.response?.status === 401) {
         localStorage.removeItem('admin_credentials');
         navigate('/admin/login');
+      }
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const setQuotaDraft = (userId, value) => {
+    setQuotaDrafts(prev => ({ ...prev, [userId]: value }));
+  };
+
+  const getCurrentQuotaValue = (userData) => {
+    const draft = quotaDrafts[userData.id];
+    if (draft !== undefined) {
+      const parsed = parseFloat(draft);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+
+    return userData.storage_quota_gb || 20;
+  };
+
+  const adjustQuotaDraft = (userData, delta) => {
+    const currentValue = getCurrentQuotaValue(userData);
+    const nextValue = Math.max(1, Math.round((currentValue + delta) * 10) / 10);
+    setQuotaDraft(userData.id, nextValue.toString());
+  };
+
+  const handleStorageQuotaUpdate = async (userData) => {
+    const quotaValue = parseFloat(quotaDrafts[userData.id]);
+
+    if (Number.isNaN(quotaValue) || quotaValue <= 0) {
+      alert('Please enter a valid storage quota greater than 0 GB');
+      return;
+    }
+
+    setActionLoading(`${userData.id}-quota`);
+    try {
+      await axios.put(
+        `${adminApiBase}/admin/users/${userData.id}/storage-quota`,
+        { storage_quota_gb: quotaValue },
+        { headers: getAuthHeaders() }
+      );
+
+      await fetchUsers();
+      setQuotaDraft(userData.id, quotaValue.toString());
+    } catch (error) {
+      console.error('Error updating storage quota:', error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem('admin_credentials');
+        navigate('/admin/login');
+      } else {
+        alert(error.response?.data?.detail || 'Failed to update storage quota');
       }
     } finally {
       setActionLoading(null);
@@ -292,6 +352,7 @@ const AdminPanel = ({ appType = 'drive' }) => {
   // Storage Management Functions
   const fetchStorageOverview = async () => {
     setStorageLoading(true);
+    setStorageError('');
     try {
       const response = await axios.get(`${adminApiBase}/admin/storage/overview`, {
         headers: getAuthHeaders()
@@ -302,6 +363,8 @@ const AdminPanel = ({ appType = 'drive' }) => {
       if (error.response?.status === 401) {
         localStorage.removeItem('admin_credentials');
         navigate('/admin/login');
+      } else {
+        setStorageError('Failed to load storage overview');
       }
     } finally {
       setStorageLoading(false);
@@ -309,16 +372,19 @@ const AdminPanel = ({ appType = 'drive' }) => {
   };
 
   const fetchDrives = async () => {
+    setStorageError('');
     try {
       const response = await axios.get(`${adminApiBase}/admin/storage/drives`, {
         headers: getAuthHeaders()
       });
-      setDrives(response.data.drives);
+      setDrives(Array.isArray(response.data.drives) ? response.data.drives : []);
     } catch (error) {
       console.error('Error fetching drives:', error);
       if (error.response?.status === 401) {
         localStorage.removeItem('admin_credentials');
         navigate('/admin/login');
+      } else {
+        setStorageError('Failed to load configured drives');
       }
     }
   };
@@ -417,13 +483,26 @@ const AdminPanel = ({ appType = 'drive' }) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   };
 
-  // Fetch storage data when storage tab is selected
+  // Fetch storage data when storage tab is selected and refresh using configured interval
   useEffect(() => {
-    if (activeTab === 'storage') {
+    if (activeTab !== 'storage') {
+      return;
+    }
+
+    fetchStorageOverview();
+    fetchDrives();
+
+    if (storageRefreshMs === 0) {
+      return;
+    }
+
+    const pollId = setInterval(() => {
       fetchStorageOverview();
       fetchDrives();
-    }
-  }, [activeTab]);
+    }, storageRefreshMs);
+
+    return () => clearInterval(pollId);
+  }, [activeTab, storageRefreshMs]);
 
   if (loading) {
     return (
@@ -671,11 +750,60 @@ const AdminPanel = ({ appType = 'drive' }) => {
                               </span>
                             </div>
                           )}
+                          <div className="flex items-center gap-2">
+                            <Database className={`h-4 w-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                            <span className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Storage cap: {Number(userData.storage_quota_gb || 20).toFixed(1)} GB
+                            </span>
+                          </div>
                         </div>
                       </div>
                       
                       {userData.status === 'approved' && (
-                        <div className="flex gap-2 ml-4">
+                        <div className="flex flex-col gap-3 ml-4 min-w-[280px]">
+                          <div className={`rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
+                            <p className={`text-xs font-medium mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              User Storage Cap (GB)
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => adjustQuotaDraft(userData, -1)}
+                                className={`px-2 py-1 rounded text-sm font-medium ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                step="0.1"
+                                value={quotaDrafts[userData.id] ?? String(userData.storage_quota_gb || 20)}
+                                onChange={(e) => setQuotaDraft(userData.id, e.target.value)}
+                                className={`w-24 px-2 py-1 border rounded text-sm ${
+                                  isDark
+                                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                                } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => adjustQuotaDraft(userData, 1)}
+                                className={`px-2 py-1 rounded text-sm font-medium ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                              >
+                                +
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleStorageQuotaUpdate(userData)}
+                                disabled={actionLoading === `${userData.id}-quota`}
+                                className="ml-auto bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                              >
+                                {actionLoading === `${userData.id}-quota` ? 'Saving...' : 'Save'}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
                           <button
                             onClick={() => toggleAdminRole(userData.id)}
                             disabled={actionLoading === `${userData.id}-toggle`}
@@ -698,6 +826,7 @@ const AdminPanel = ({ appType = 'drive' }) => {
                             <Key className="h-4 w-4" />
                             Change Password
                           </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -772,6 +901,24 @@ const AdminPanel = ({ appType = 'drive' }) => {
 
               {/* Drives List */}
               <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    Configured Drives ({drives.length})
+                  </h3>
+                </div>
+
+                {storageError && (
+                  <div className="rounded-lg border border-red-300 bg-red-50 text-red-700 px-4 py-3 text-sm">
+                    {storageError}
+                  </div>
+                )}
+
+                {!storageLoading && drives.length === 0 && !storageError && (
+                  <div className={`rounded-lg border px-4 py-6 text-center ${isDark ? 'border-gray-700 bg-gray-750 text-gray-300' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+                    No drives configured yet. Use "Add Drive" to create one, then it will appear here for review and edit.
+                  </div>
+                )}
+
                 {drives.map((drive) => (
                   <div
                     key={drive.id}
@@ -822,13 +969,14 @@ const AdminPanel = ({ appType = 'drive' }) => {
                         )}
                         <button
                           onClick={() => openDriveModal('edit', drive)}
-                          className={`p-2 rounded transition-colors ${
+                          className={`px-3 py-1 rounded text-sm font-medium transition-colors flex items-center gap-1 ${
                             isDark 
-                              ? 'text-gray-400 hover:text-blue-400 hover:bg-gray-700' 
-                              : 'text-gray-600 hover:text-blue-600 hover:bg-gray-100'
+                              ? 'text-gray-200 bg-gray-700 hover:bg-gray-600' 
+                              : 'text-gray-700 bg-gray-200 hover:bg-gray-300'
                           }`}
                         >
                           <Edit className="h-4 w-4" />
+                          Edit
                         </button>
                         <button
                           onClick={() => handleDeleteDrive(drive.id)}
@@ -846,7 +994,7 @@ const AdminPanel = ({ appType = 'drive' }) => {
                 ))}
               </div>
 
-              {loading && (
+              {storageLoading && (
                 <div className="text-center py-8">
                   <div className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                     Loading storage information...

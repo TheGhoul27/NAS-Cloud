@@ -54,6 +54,7 @@ async def register(user: UserCreate, session: Session = Depends(get_session)):
         phone=user.phone,
         storage_id=storage_id,
         storage_drive_id=storage_drive_id,
+        storage_quota_gb=20.0,
         status=UserStatus.PENDING,  # Set to pending for admin approval
         role=UserRole.USER  # Set role to user by default
     )
@@ -76,6 +77,7 @@ async def register(user: UserCreate, session: Session = Depends(get_session)):
         lastname=db_user.lastname,
         phone=db_user.phone,
         storage_id=db_user.storage_id,
+        storage_quota_gb=db_user.storage_quota_gb or 20.0,
         role=db_user.role,
         status=db_user.status,
         created_at=db_user.created_at,
@@ -124,6 +126,7 @@ async def get_current_user_info(
         lastname=current_user.lastname,
         phone=current_user.phone,
         storage_id=current_user.storage_id,
+        storage_quota_gb=current_user.storage_quota_gb or 20.0,
         role=current_user.role,
         status=current_user.status,
         created_at=current_user.created_at,

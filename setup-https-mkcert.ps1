@@ -69,31 +69,36 @@ try {
     $caRoot = (& $mkcertExe -CAROOT 2>&1).Trim()
     $caCertSrc = Join-Path $caRoot 'rootCA.pem'
     $caCertDst = Join-Path $certDir 'rootCA.crt'
+
     if (Test-Path $caCertSrc) {
         Copy-Item $caCertSrc $caCertDst -Force
-        Write-Host "" 
+        Write-Host ""
         Write-Host "Root CA exported for client devices:" -ForegroundColor Green
         Write-Host "  $caCertDst"
-        Write-Host "" 
+        Write-Host ""
         Write-Host "Devices on your network need to trust this CA to enable PWA install." -ForegroundColor Yellow
         Write-Host "After starting the servers, devices can download the CA from:" -ForegroundColor Cyan
-        foreach ($ip in $ipList | Where-Object { $_ -ne '::1' }) {
+
+        foreach ($ip in ($ipList | Where-Object { $_ -ne '::1' })) {
             Write-Host "  https://${ip}:3000/ca.crt"
         }
-        Write-Host "" 
+
+        Write-Host ""
         Write-Host "Installation instructions:" -ForegroundColor Cyan
         Write-Host "  Android : Download and install as 'CA certificate' in Security settings"
         Write-Host "  iOS     : Download in Safari -> Settings > General > VPN & Device Management -> Trust"
         Write-Host "  Windows : Double-click .crt -> Install -> Trusted Root Certification Authorities"
         Write-Host "  macOS   : Double-click in Keychain Access -> Trust for SSL"
-    } else {
-        Write-Warning "Could not find root CA at: $caCertSrc — skipping CA export"
     }
-} catch {
+    else {
+        Write-Warning "Could not find root CA at: $caCertSrc - skipping CA export"
+    }
+}
+catch {
     Write-Warning "CA export failed: $_"
 }
 
-Write-Host "" 
+Write-Host ""
 Write-Host "Restart frontend servers and use:" -ForegroundColor Cyan
 Write-Host "  https://localhost:3000/login"
 Write-Host "  https://localhost:3001/login"

@@ -47,10 +47,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API routers
+# Include API routers (primary)
 app.include_router(auth_router, prefix="/api")
 app.include_router(files_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+
+# Backward-compatible routes (legacy clients may call /auth, /files, /admin directly)
+app.include_router(auth_router)
+app.include_router(files_router)
+app.include_router(admin_router)
 
 # Static files path for development
 static_path = os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')

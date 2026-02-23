@@ -79,11 +79,23 @@ def migrate_storage():
             old_conn = sqlite3.connect(str(backup_path))
             old_cursor = old_conn.cursor()
             
-            old_cursor.execute("""
-                SELECT id, email, password_hash, firstname, lastname, phone, storage_id, 
-                       role, status, created_at, approved_at, approved_by, is_active
-                FROM user
-            """)
+            old_cursor.execute("PRAGMA table_info(user)")
+            old_columns = [column[1] for column in old_cursor.fetchall()]
+            has_storage_quota = 'storage_quota_gb' in old_columns
+
+            if has_storage_quota:
+                old_cursor.execute("""
+                    SELECT id, email, password_hash, firstname, lastname, phone, storage_id,
+                           role, status, created_at, approved_at, approved_by, is_active, storage_quota_gb
+                    FROM user
+                """)
+            else:
+                old_cursor.execute("""
+                    SELECT id, email, password_hash, firstname, lastname, phone, storage_id,
+                           role, status, created_at, approved_at, approved_by, is_active
+                    FROM user
+                """)
+
             user_data = old_cursor.fetchall()
             old_conn.close()
             
@@ -102,8 +114,13 @@ def migrate_storage():
                 with Session(engine) as session:
                     for row in user_data:
                         # Parse the row data
-                        (user_id, email, password_hash, firstname, lastname, phone, storage_id,
-                         role, status, created_at, approved_at, approved_by, is_active) = row
+                        if has_storage_quota:
+                            (user_id, email, password_hash, firstname, lastname, phone, storage_id,
+                             role, status, created_at, approved_at, approved_by, is_active, storage_quota_gb) = row
+                        else:
+                            (user_id, email, password_hash, firstname, lastname, phone, storage_id,
+                             role, status, created_at, approved_at, approved_by, is_active) = row
+                            storage_quota_gb = 20.0
                         
                         # Parse datetime strings if they exist
                         from datetime import datetime
@@ -130,6 +147,7 @@ def migrate_storage():
                             phone=phone,
                             storage_id=storage_id,
                             storage_drive_id=None,  # Will be set later
+                            storage_quota_gb=float(storage_quota_gb) if storage_quota_gb is not None else 20.0,
                             role=role,
                             status=status,
                             created_at=created_at,

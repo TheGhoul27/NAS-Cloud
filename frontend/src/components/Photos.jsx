@@ -21,6 +21,7 @@ const Photos = () => {
   const [loading, setLoading] = useState(true);
   const [recentFiles, setRecentFiles] = useState([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
+  const [storageInfo, setStorageInfo] = useState(null);
   
   // Modal states
   const [uploading, setUploading] = useState(false);
@@ -60,6 +61,11 @@ const Photos = () => {
   // Fetch recent files when component mounts
   useEffect(() => {
     fetchRecentFiles();
+  }, []);
+
+  // Fetch storage usage/quota when component mounts
+  useEffect(() => {
+    fetchStorageInfo();
   }, []);
 
   // Check for mobile viewport
@@ -111,6 +117,25 @@ const Photos = () => {
     } finally {
       setLoadingRecent(false);
     }
+  };
+
+  const fetchStorageInfo = async () => {
+    try {
+      const response = await filesAPI.getStorageInfo();
+      setStorageInfo(response.data);
+    } catch (error) {
+      console.error('Error fetching storage info:', error);
+    }
+  };
+
+  const formatStorageSummary = () => {
+    if (!storageInfo) {
+      return 'Storage: -- / --';
+    }
+
+    const usedGb = (storageInfo.storage_size_bytes || 0) / (1024 ** 3);
+    const quotaGb = storageInfo.storage_quota_gb || 20;
+    return `Storage: ${usedGb.toFixed(2)} GB / ${quotaGb.toFixed(2)} GB`;
   };
 
   const isMediaFile = (mimeType, fileName) => {
@@ -188,6 +213,7 @@ const Photos = () => {
       
       await fetchMediaFiles();
       await fetchRecentFiles();
+      await fetchStorageInfo();
     } catch (error) {
       console.error('Upload error:', error);
       alert('Upload failed. Please try again.');
@@ -258,6 +284,7 @@ const Photos = () => {
       
       await fetchMediaFiles();
       await fetchRecentFiles();
+      await fetchStorageInfo();
     } catch (error) {
       console.error('Drop upload error:', error);
       alert('Upload failed. Please try again.');
@@ -323,6 +350,7 @@ const Photos = () => {
       setItemToDelete(null);
       await fetchMediaFiles();
       await fetchRecentFiles();
+      await fetchStorageInfo();
     } catch (error) {
       console.error('Delete error:', error);
       alert('Failed to delete item. Please try again.');
@@ -437,6 +465,10 @@ const Photos = () => {
         onLogout={logout}
       />
 
+      <div className={`px-4 py-2 text-sm border-b ${isDark ? 'bg-gray-800 text-gray-300 border-gray-700' : 'bg-white text-gray-700 border-gray-200'}`}>
+        {formatStorageSummary()}
+      </div>
+
       <div className="flex">
         {/* Responsive Sidebar */}
         <ResponsiveSidebar
@@ -517,6 +549,10 @@ const Photos = () => {
                           </button>
                         )}
                       </div>
+                    </div>
+
+                    <div className={`ml-4 px-3 py-2 rounded-lg text-sm font-medium ${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}>
+                      {formatStorageSummary()}
                     </div>
                   </div>
 

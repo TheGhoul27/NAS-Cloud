@@ -24,6 +24,7 @@ const Drive = () => {
   const [currentPath, setCurrentPath] = useState('');
   const [recentFiles, setRecentFiles] = useState([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
+  const [storageInfo, setStorageInfo] = useState(null);
 
   // Modal states
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
@@ -69,6 +70,11 @@ const Drive = () => {
   // Fetch recent files when component mounts
   useEffect(() => {
     fetchRecentFiles();
+  }, []);
+
+  // Fetch storage usage/quota when component mounts
+  useEffect(() => {
+    fetchStorageInfo();
   }, []);
 
   // Check for mobile viewport
@@ -130,6 +136,25 @@ const Drive = () => {
     }
   };
 
+  const fetchStorageInfo = async () => {
+    try {
+      const response = await filesAPI.getStorageInfo();
+      setStorageInfo(response.data);
+    } catch (error) {
+      console.error('Error fetching storage info:', error);
+    }
+  };
+
+  const formatStorageSummary = () => {
+    if (!storageInfo) {
+      return 'Storage: -- / --';
+    }
+
+    const usedGb = (storageInfo.storage_size_bytes || 0) / (1024 ** 3);
+    const quotaGb = storageInfo.storage_quota_gb || 20;
+    return `Storage: ${usedGb.toFixed(2)} GB / ${quotaGb.toFixed(2)} GB`;
+  };
+
   const handleFolderClick = (folderName) => {
     const newPath = currentPath ? `${currentPath}/${folderName}` : folderName;
     setCurrentPath(newPath);
@@ -182,6 +207,7 @@ const Drive = () => {
       
       await fetchFiles();
       await fetchRecentFiles();
+      await fetchStorageInfo();
     } catch (error) {
       console.error('Upload error:', error);
       alert('Upload failed. Please try again.');
@@ -232,6 +258,7 @@ const Drive = () => {
       setItemToDelete(null);
       await fetchFiles();
       await fetchRecentFiles();
+      await fetchStorageInfo();
     } catch (error) {
       console.error('Delete error:', error);
       alert('Failed to delete item. Please try again.');
@@ -476,6 +503,7 @@ const Drive = () => {
       
       await fetchFiles();
       await fetchRecentFiles();
+      await fetchStorageInfo();
     } catch (error) {
       console.error('Drop upload error:', error);
       alert('Upload failed. Please try again.');
@@ -502,6 +530,10 @@ const Drive = () => {
         onSearch={() => setSearchActive(true)}
         onLogout={logout}
       />
+
+      <div className={`px-4 py-2 text-sm border-b ${isDark ? 'bg-gray-800 text-gray-300 border-gray-700' : 'bg-white text-gray-700 border-gray-200'}`}>
+        {formatStorageSummary()}
+      </div>
 
       <div className="flex">
         {/* Responsive Sidebar */}
@@ -629,6 +661,10 @@ const Drive = () => {
                           <option value="text">Text files</option>
                         </select>
                       </div>
+                    </div>
+
+                    <div className={`ml-4 px-3 py-2 rounded-lg text-sm font-medium ${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}>
+                      {formatStorageSummary()}
                     </div>
                   </div>
 

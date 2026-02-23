@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nas-cloud-v2';
+const CACHE_NAME = 'nas-cloud-v3';
 const RUNTIME_CACHE = 'nas-cloud-runtime';
 const API_CACHE = 'nas-cloud-api';
 
@@ -79,27 +79,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets - cache first, fallback to network
+  // Static assets - network first, fallback to cache
   if (request.destination === 'style' || request.destination === 'script' || request.destination === 'image') {
     event.respondWith(
-      caches.match(request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
+      fetch(request).then((response) => {
+        if (!response || response.status !== 200 || response.type === 'error') {
+          return response;
         }
 
-        return fetch(request).then((response) => {
-          // Cache successful responses
-          if (!response || response.status !== 200 || response.type === 'error') {
-            return response;
-          }
-
-          const responseClone = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => {
-            cache.put(request, responseClone);
-          });
-
-          return response;
+        const responseClone = response.clone();
+        caches.open(RUNTIME_CACHE).then((cache) => {
+          cache.put(request, responseClone);
         });
+
+        return response;
+      }).catch(() => {
+        return caches.match(request);
       })
     );
     return;

@@ -72,6 +72,7 @@ async def get_storage_info(
     storage_paths: dict = Depends(get_current_user_storage)
 ):
     """Get current user's storage information"""
+    user_quota_gb = current_user.storage_quota_gb or 20.0
     storage_size = storage_service.get_user_storage_size(
         current_user.storage_id, 
         drive_id=current_user.storage_drive_id
@@ -95,6 +96,8 @@ async def get_storage_info(
         "storage_paths": storage_paths,
         "storage_size_bytes": storage_size,
         "storage_size_mb": round(storage_size / (1024 * 1024), 2),
+        "storage_quota_gb": user_quota_gb,
+        "storage_quota_bytes": int(user_quota_gb * 1024 * 1024 * 1024),
         "drive_info": drive_info
     }
 
@@ -213,6 +216,29 @@ async def upload_file(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No file provided"
+        )
+
+    # Read upload size and enforce user quota
+    try:
+        file.file.seek(0, os.SEEK_END)
+        upload_size_bytes = file.file.tell()
+        file.file.seek(0)
+    except Exception:
+        upload_size_bytes = 0
+
+    current_usage_bytes = storage_service.get_user_storage_size(
+        current_user.storage_id,
+        drive_id=current_user.storage_drive_id
+    )
+    user_quota_gb = current_user.storage_quota_gb or 20.0
+    quota_bytes = int(user_quota_gb * 1024 * 1024 * 1024)
+
+    if upload_size_bytes > 0 and (current_usage_bytes + upload_size_bytes) > quota_bytes:
+        available_bytes = max(0, quota_bytes - current_usage_bytes)
+        available_mb = round(available_bytes / (1024 * 1024), 2)
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Storage quota exceeded. Available: {available_mb} MB of {user_quota_gb} GB"
         )
     
     # Sanitize filename

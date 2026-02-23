@@ -22,6 +22,11 @@ if (!fs.existsSync(distDir)) {
 
 const app = express()
 
+app.get('/service-worker.js', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+  next()
+})
+
 app.use('/api', createProxyMiddleware({
   target: backendTarget,
   changeOrigin: true,
@@ -43,6 +48,7 @@ if (fs.existsSync(caCertPath)) {
 app.use(express.static(distDir, { index: false }))
 
 app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
   res.sendFile(path.join(distDir, 'index.html'))
 })
 

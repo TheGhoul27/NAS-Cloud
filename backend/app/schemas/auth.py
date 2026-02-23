@@ -21,6 +21,7 @@ class UserResponse(BaseModel):
     lastname: str
     phone: Optional[str]
     storage_id: str
+    storage_quota_gb: float
     role: UserRole
     status: UserStatus
     created_at: datetime
@@ -33,6 +34,7 @@ class UserListResponse(BaseModel):
     firstname: str
     lastname: str
     phone: Optional[str]
+    storage_quota_gb: float
     role: UserRole
     status: UserStatus
     created_at: datetime
@@ -46,6 +48,9 @@ class UserApprovalRequest(BaseModel):
 class UserPasswordChange(BaseModel):
     user_id: int
     new_password: str
+
+class UserStorageQuotaChange(BaseModel):
+    storage_quota_gb: float
 
 class Token(BaseModel):
     access_token: str
