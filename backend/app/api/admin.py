@@ -103,22 +103,36 @@ async def get_all_users(
     statement = select(User).order_by(desc(User.created_at))
     users = session.exec(statement).all()
     
-    return [
-        UserListResponse(
-            id=user.id or 0,
-            email=user.email,
-            firstname=user.firstname,
-            lastname=user.lastname,
-            phone=user.phone,
-            storage_quota_gb=user.storage_quota_gb or 20.0,
-            role=user.role,
-            status=user.status,
-            created_at=user.created_at,
-            approved_at=user.approved_at,
-            is_active=user.is_active
+    user_responses = []
+    for user in users:
+        storage_quota_gb = user.storage_quota_gb or 20.0
+        storage_used_bytes = storage_service.get_user_storage_size(
+            user.storage_id,
+            drive_id=user.storage_drive_id
         )
-        for user in users
-    ]
+        storage_used_gb = round(storage_used_bytes / (1024**3), 2)
+        storage_usage_percent = round(min(100.0, (storage_used_gb / storage_quota_gb) * 100), 2) if storage_quota_gb > 0 else 0.0
+
+        user_responses.append(
+            UserListResponse(
+                id=user.id or 0,
+                email=user.email,
+                firstname=user.firstname,
+                lastname=user.lastname,
+                phone=user.phone,
+                storage_quota_gb=storage_quota_gb,
+                storage_used_bytes=storage_used_bytes,
+                storage_used_gb=storage_used_gb,
+                storage_usage_percent=storage_usage_percent,
+                role=user.role,
+                status=user.status,
+                created_at=user.created_at,
+                approved_at=user.approved_at,
+                is_active=user.is_active
+            )
+        )
+
+    return user_responses
 
 @router.get("/users/pending", response_model=List[UserListResponse])
 async def get_pending_users(
@@ -128,7 +142,7 @@ async def get_pending_users(
     """Get all pending users (admin only)"""
     statement = select(User).where(User.status == UserStatus.PENDING).order_by(desc(User.created_at))
     users = session.exec(statement).all()
-    
+
     return [
         UserListResponse(
             id=user.id or 0,
@@ -137,6 +151,9 @@ async def get_pending_users(
             lastname=user.lastname,
             phone=user.phone,
             storage_quota_gb=user.storage_quota_gb or 20.0,
+            storage_used_bytes=0,
+            storage_used_gb=0.0,
+            storage_usage_percent=0.0,
             role=user.role,
             status=user.status,
             created_at=user.created_at,

@@ -349,6 +349,18 @@ const AdminPanel = ({ appType = 'drive' }) => {
     );
   };
 
+  const getUsagePercent = (userData) => {
+    const percent = Number(userData.storage_usage_percent || 0);
+    if (!Number.isFinite(percent)) return 0;
+    return Math.max(0, Math.min(100, percent));
+  };
+
+  const getUsageBarClass = (percent) => {
+    if (percent >= 95) return 'bg-red-500';
+    if (percent >= 80) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+
   // Storage Management Functions
   const fetchStorageOverview = async () => {
     setStorageLoading(true);
@@ -755,6 +767,18 @@ const AdminPanel = ({ appType = 'drive' }) => {
                             <span className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                               Storage cap: {Number(userData.storage_quota_gb || 20).toFixed(1)} GB
                             </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <HardDrive className={`h-4 w-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                            <span className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Used: {Number(userData.storage_used_gb || 0).toFixed(2)} GB ({getUsagePercent(userData).toFixed(1)}%)
+                            </span>
+                          </div>
+                          <div className={`w-full h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                            <div
+                              className={`h-2 rounded-full transition-all ${getUsageBarClass(getUsagePercent(userData))}`}
+                              style={{ width: `${getUsagePercent(userData)}%` }}
+                            />
                           </div>
                         </div>
                       </div>

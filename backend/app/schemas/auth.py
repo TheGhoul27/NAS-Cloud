@@ -35,6 +35,9 @@ class UserListResponse(BaseModel):
     lastname: str
     phone: Optional[str]
     storage_quota_gb: float
+    storage_used_bytes: int
+    storage_used_gb: float
+    storage_usage_percent: float
     role: UserRole
     status: UserStatus
     created_at: datetime
