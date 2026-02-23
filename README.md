@@ -89,6 +89,51 @@ This starts:
 - Drive app on port `3000` (Express + HTTPS)
 - Photos app on port `3001` (Express + HTTPS)
 
+## Docker (Persistent Data)
+
+You can run backend + both frontend apps with Docker while keeping storage and database data outside the images.
+
+### What is persisted
+
+- SQLite database file: `docker-data/sqlite/nas_cloud.db`
+- NAS file storage: `docker-data/nas_storage`
+
+These folders remain on your host machine, so stopping/rebuilding containers does not delete your data.
+
+### Run with Docker Compose
+
+From project root:
+
+```bash
+docker compose up -d --build
+```
+
+Backend will be available at:
+
+- API: <http://localhost:8000>
+- Docs: <http://localhost:8000/docs>
+- Drive app: <http://localhost:3000/login>
+- Photos app: <http://localhost:3001/login>
+
+Stop without deleting data:
+
+```bash
+docker compose down
+```
+
+If you want to delete all persisted data too (destructive):
+
+```bash
+docker compose down -v
+```
+
+### Notes
+
+- Current compose setup includes backend + Drive frontend + Photos frontend.
+- SQLite and NAS storage are persisted on host under `docker-data/`.
+- Docker frontend services use HTTP by default (`3000` and `3001`).
+- Change `SECRET_KEY` in `docker-compose.yml` before production use.
+
 ## Access the Applications
 
 **With Express Frontend + Backend (Current):**
@@ -142,7 +187,7 @@ nas_storage/
 
 Backend `.env` file:
 ```
-DATABASE_URL=postgresql://nascloud:nascloud@localhost:5432/nascloud
+DATABASE_URL=sqlite:///./nas_cloud.db
 SECRET_KEY=your-secret-key-change-this-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -156,7 +201,7 @@ NAS_STORAGE_PATH=./nas_storage
 
 - The backend runs on port 8000
 - The frontend runs on port 3000 with API proxy configuration
-- Database runs on port 5432
+- Database is SQLite by default (`nas_cloud.db`)
 - Redis runs on port 6379 (for future job queue implementation)
 
 ## Next Steps

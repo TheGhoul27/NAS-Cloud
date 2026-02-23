@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import http from 'node:http'
 import https from 'node:https'
 import express from 'express'
 import { createProxyMiddleware } from 'http-proxy-middleware'
@@ -13,6 +14,7 @@ const distDir = path.resolve(rootDir, appType === 'photos' ? 'dist-photos' : 'di
 const certDir = path.resolve(rootDir, 'certs')
 const keyPath = path.join(certDir, 'localhost+lan-key.pem')
 const certPath = path.join(certDir, 'localhost+lan.pem')
+const allowHttpFallback = String(process.env.ALLOW_HTTP_FALLBACK || 'false').toLowerCase() === 'true'
 
 if (!fs.existsSync(distDir)) {
   console.error(`[Express] Build output not found: ${distDir}`)
@@ -70,6 +72,23 @@ if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
 
   server.listen(port, '0.0.0.0', () => {
     console.log(`[Express] ${appType} app running at https://localhost:${port}`)
+  })
+} else if (allowHttpFallback) {
+  const server = http.createServer(app)
+
+  server.on('error', (error) => {
+    if (error?.code === 'EADDRINUSE') {
+      console.error(`[Express] Port ${port} is already in use. ${appType} may already be running.`)
+      console.error('[Express] Stop the existing process on this port or use start-all.ps1 to manage startup.')
+      process.exit(1)
+    }
+
+    console.error('[Express] Server failed to start:', error)
+    process.exit(1)
+  })
+
+  server.listen(port, '0.0.0.0', () => {
+    console.log(`[Express] ${appType} app running at http://localhost:${port}`)
   })
 } else {
   console.error('[Express] Trusted cert files missing in frontend/certs')
